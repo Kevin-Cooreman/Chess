@@ -1,17 +1,36 @@
 # Build directories
 build/
+out/
 *.o
 *.d
 
+# CMake generated files
+CMakeCache.txt
+CMakeFiles/
+cmake_install.cmake
+Makefile
+*.cmake
+compile_commands.json
+CTestTestfile.cmake
+install_manifest.txt
+
 # Executable files
+*.exe
 chess_engine
 chess_engine.exe
+main
+main.exe
 
 # IDE files
-.vscode/
 .vs/
 *.vcxproj*
 *.sln
+
+# VS Code settings (keep some, ignore others)
+.vscode/settings.json
+.vscode/launch.json
+.vscode/tasks.json
+.vscode/c_cpp_properties.json
 
 # Temporary files
 *.tmp
