@@ -3,6 +3,8 @@
 #include <array>
 #include <string>
 
+using namespace std;
+
 int board[8][8];
 
 // initialise empty board

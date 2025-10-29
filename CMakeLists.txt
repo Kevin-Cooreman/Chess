@@ -19,11 +19,13 @@ set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 set(SOURCES
     src/main.cpp
     src/board.cpp
+    src/moveGeneration.cpp
 )
 
 # Headers (for IDE convenience)
 set(HEADERS
     src/board.hpp
+    src/moveGeneration.hpp
 )
 
 # Create executable
