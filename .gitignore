@@ -1,0 +1,29 @@
+# Build directories
+build/
+*.o
+*.d
+
+# Executable files
+chess_engine
+chess_engine.exe
+
+# IDE files
+.vscode/
+.vs/
+*.vcxproj*
+*.sln
+
+# Temporary files
+*.tmp
+*.temp
+*~
+
+# OS specific
+.DS_Store
+Thumbs.db
+
+# Log files
+*.log
+
+# Test output
+test_output/
