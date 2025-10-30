@@ -15,9 +15,8 @@ set(CMAKE_CXX_FLAGS "-Wall -Wextra")
 set(CMAKE_CXX_FLAGS_DEBUG "-g -DDEBUG")
 set(CMAKE_CXX_FLAGS_RELEASE "-O3 -DNDEBUG")
 
-# Source files
-set(SOURCES
-    src/main.cpp
+# Common library sources (shared by all executables)
+set(LIB_SOURCES
     src/board.cpp
     src/moveGeneration.cpp
     src/game.cpp
@@ -30,11 +29,10 @@ set(HEADERS
     src/game.hpp
 )
 
-# Common library sources (shared by all executables)
-set(LIB_SOURCES
-    src/board.cpp
-    src/moveGeneration.cpp
-    src/game.cpp
+# Main executable sources
+set(SOURCES
+    src/main.cpp
+    ${LIB_SOURCES}
 )
 
 # Create main executable
@@ -48,7 +46,16 @@ add_executable(chess_test_promotion src/test_promotion.cpp ${LIB_SOURCES})
 add_executable(chess_loop_test src/loop_test.cpp ${LIB_SOURCES})
 
 # Set output directories for all executables
-set_target_properties(chess_engine chess_test chess_debug chess_demo_promotion chess_test_promotion chess_loop_test
+set(ALL_TARGETS 
+    chess_engine 
+    chess_test 
+    chess_debug 
+    chess_demo_promotion 
+    chess_test_promotion 
+    chess_loop_test
+)
+
+set_target_properties(${ALL_TARGETS}
     PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"
