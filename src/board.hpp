@@ -1,3 +1,4 @@
+#pragma once
 /*made with help of github copilot agent*/
 #include <iostream>
 #include <array>

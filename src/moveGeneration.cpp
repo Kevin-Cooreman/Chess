@@ -14,12 +14,12 @@ vector<Move> generateRookMoves(int sRow, int sCol){
         }
 
         else if(!sameColour(board[sRow][sCol], board[targetRow][sCol]) && !isEmpty(board[targetRow][sCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, sCol});
+            moves.push_back(Move(sRow, sCol, targetRow, sCol));
             break;
         }
 
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, sCol});
+            moves.push_back(Move(sRow, sCol, targetRow, sCol));
         }
     }
     //down
@@ -30,12 +30,12 @@ vector<Move> generateRookMoves(int sRow, int sCol){
         }
 
         else if(!sameColour(board[sRow][sCol], board[targetRow][sCol]) && !isEmpty(board[targetRow][sCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, sCol});
+            moves.push_back(Move(sRow, sCol, targetRow, sCol));
             break;
         }
 
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, sCol});
+            moves.push_back(Move(sRow, sCol, targetRow, sCol));
         }
     }
 
@@ -47,12 +47,12 @@ vector<Move> generateRookMoves(int sRow, int sCol){
         }
 
         else if(!sameColour(board[sRow][sCol], board[sRow][targetCol]) && !isEmpty(board[sRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, sRow, targetCol});
+            moves.push_back(Move(sRow, sCol, sRow, targetCol));
             break;
         }
 
         else{
-            moves.push_back(Move{sRow, sCol, sRow, targetCol});
+            moves.push_back(Move(sRow, sCol, sRow, targetCol));
         }
     }
 
@@ -64,12 +64,12 @@ vector<Move> generateRookMoves(int sRow, int sCol){
         }
 
         else if(!sameColour(board[sRow][sCol], board[sRow][targetCol]) && !isEmpty(board[sRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, sRow, targetCol});
+            moves.push_back(Move(sRow, sCol, sRow, targetCol));
             break;
         }
 
         else{
-            moves.push_back(Move{sRow, sCol, sRow, targetCol});
+            moves.push_back(Move(sRow, sCol, sRow, targetCol));
         }
     }
     return moves;
@@ -88,11 +88,11 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
             break;
         }
         else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
             break;
         }
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
         }
     }
 
@@ -106,11 +106,11 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
             break;
         }
         else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
             break;
         }
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
         }
     }
 
@@ -124,11 +124,11 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
             break;
         }
         else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
             break;
         }
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
         }
     }
 
@@ -142,11 +142,11 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
             break;
         }
         else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
             break;
         }
         else{
-            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
         }
     }
 
@@ -403,6 +403,70 @@ vector<Move> generatePawnMoves(int sRow, int sCol){
     return moves;
 }
 
+// Generate basic moves without special moves (used for attack detection to avoid infinite recursion)
+vector<Move> generateBasicMovesForPiece(int row, int col) {
+    int piece = board[row][col];
+    int pieceType = piece & 0b0111; // Extract piece type
+    
+    switch(pieceType) {
+        case 0b0001: { // Pawn - basic moves only (no en passant, no promotion)
+            vector<Move> moves;
+            bool isWhitePawn = isWhite(piece);
+            int direction = isWhitePawn ? -1 : 1;
+            int targetRow = row + direction;
+            
+            // Forward move
+            if (targetRow >= 0 && targetRow < 8 && isEmpty(board[targetRow][col])) {
+                moves.push_back(Move(row, col, targetRow, col));
+                
+                // Double move from starting position
+                if ((isWhitePawn && row == 6) || (!isWhitePawn && row == 1)) {
+                    targetRow = row + 2 * direction;
+                    if (targetRow >= 0 && targetRow < 8 && isEmpty(board[targetRow][col])) {
+                        moves.push_back(Move(row, col, targetRow, col));
+                    }
+                }
+            }
+            
+            // Diagonal captures
+            for (int colOffset = -1; colOffset <= 1; colOffset += 2) {
+                int targetCol = col + colOffset;
+                if (targetCol >= 0 && targetCol < 8 && targetRow >= 0 && targetRow < 8) {
+                    int targetPiece = board[targetRow][targetCol];
+                    if (!isEmpty(targetPiece) && isWhite(targetPiece) != isWhitePawn) {
+                        moves.push_back(Move(row, col, targetRow, targetCol));
+                    }
+                }
+            }
+            return moves;
+        }
+        case 0b0010: return generateRookMoves(row, col);
+        case 0b0011: return generateKnightMoves(row, col);
+        case 0b0100: return generateBishopMoves(row, col);
+        case 0b0101: return generateQueenMoves(row, col);
+        case 0b0110: { // King - basic moves only (no castling)
+            vector<Move> moves;
+            int directions[8][2] = {
+                {-1, -1}, {-1,  0}, {-1,  1}, { 0, -1},
+                { 0,  1}, { 1, -1}, { 1,  0}, { 1,  1}
+            };
+            
+            for(int i = 0; i < 8; i++){
+                int targetRow = row + directions[i][0];
+                int targetCol = col + directions[i][1];
+                
+                if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+                    if(!sameColour(board[row][col], board[targetRow][targetCol])){
+                        moves.push_back(Move(row, col, targetRow, targetCol));
+                    }
+                }
+            }
+            return moves;
+        }
+        default: return vector<Move>(); // Empty vector for invalid pieces
+    }
+}
+
 // This replaces the need for separate piece-type checking
 vector<Move> generateMovesForPiece(int row, int col) {
     int piece = board[row][col];
@@ -432,8 +496,8 @@ bool isSquareAttacked(int row, int col, bool colour) {
             // Check if this piece belongs to the attacking color
             if(isWhite(piece) != colour) continue;
             
-            // Generate moves for this piece and see if any target our square
-            vector<Move> pieceMoves = generateMovesForPiece(r, c);
+            // Generate basic moves for this piece (no special moves to avoid infinite recursion)
+            vector<Move> pieceMoves = generateBasicMovesForPiece(r, c);
             
             for(const Move& move : pieceMoves) {
                 if(move.targetRow == row && move.targetColumn == col) {

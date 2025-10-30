@@ -20,12 +20,14 @@ set(SOURCES
     src/main.cpp
     src/board.cpp
     src/moveGeneration.cpp
+    src/game.cpp
 )
 
 # Headers (for IDE convenience)
 set(HEADERS
     src/board.hpp
     src/moveGeneration.hpp
+    src/game.hpp
 )
 
 # Create executable

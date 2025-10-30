@@ -1,3 +1,4 @@
+#pragma once
 /*generate legal moves for each piece
 - possible moves
 - check if blocked
@@ -52,6 +53,9 @@ vector<Move> generateLegalMoves(bool isWhiteTurn);
 
 // Helper to generate moves for any piece at a position
 vector<Move> generateMovesForPiece(int row, int col);
+
+// Generate basic moves without special moves (for attack detection)
+vector<Move> generateBasicMovesForPiece(int row, int col);
 
 // Special move functions
 vector<Move> generateCastlingMoves(bool isWhite);

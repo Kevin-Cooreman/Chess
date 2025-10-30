@@ -1,0 +1,12 @@
+[
+  {
+    "name": "MinGW64",
+    "compilers": {
+      "C": "gcc",
+      "CXX": "g++"
+    },
+    "preferredGenerator": {
+      "name": "MinGW Makefiles"
+    }
+  }
+]
