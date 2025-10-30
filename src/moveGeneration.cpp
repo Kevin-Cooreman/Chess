@@ -161,3 +161,81 @@ vector<Move> generateQueenMoves(int sRow, int sCol){
     
     return moves;
 }
+
+vector<Move> generateKingMoves(int sRow, int sCol){
+    vector<Move> moves;
+    
+    // All 8 possible directions (row offset, col offset)
+    int directions[8][2] = {
+        {-1, -1}, // Up-Left
+        {-1,  0}, // Up
+        {-1,  1}, // Up-Right
+        { 0, -1}, // Left
+        { 0,  1}, // Right
+        { 1, -1}, // Down-Left
+        { 1,  0}, // Down
+        { 1,  1}  // Down-Right
+    };
+    
+    for(int i = 0; i < 8; i++){
+        int targetRow = sRow + directions[i][0];
+        int targetCol = sCol + directions[i][1];
+        
+        // Check if target is on board
+        if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+            
+            // Same logic as other pieces:
+            if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+                // Same color piece - can't move there
+                continue; // Skip this move
+            }
+            else {
+                // Empty square or enemy piece - can move there
+                moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            }
+        }
+    }
+    
+    return moves;
+}
+
+vector<Move> generateKnightMoves(int sRow, int sCol){
+    vector<Move> moves;
+    
+    // All 8 possible directions (row offset, col offset)
+    int directions[8][2] = {
+        {-1, -2}, // Up-Left-Left
+        {-2, -1}, // Up-Up-Left
+        {-2, 1}, // Up-Up-Right
+        {-1, 2}, // Up-Right-Right 
+        { 1, 2}, // Down-Right-Right 
+        { 2, 1}, // Down-Down-Right 
+        { 2, -1}, // Down-Down-Left 
+        { 1, -2}  // Down-Left-Left 
+    };
+    
+    for(int i = 0; i < 8; i++){
+        int targetRow = sRow + directions[i][0];
+        int targetCol = sCol + directions[i][1];
+        
+        // Check if target is on board
+        if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+            
+            // Same logic as other pieces:
+            if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+                // Same color piece - can't move there
+                continue; // Skip this move
+            }
+            else {
+                // Empty square or enemy piece - can move there
+                moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            }
+        }
+    }
+    
+    return moves;
+}
+
+vector<Move> generatePawnMoves(int sRow, int sCol){
+    //To Do: add pawn move generation
+}
