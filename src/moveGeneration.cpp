@@ -237,5 +237,110 @@ vector<Move> generateKnightMoves(int sRow, int sCol){
 }
 
 vector<Move> generatePawnMoves(int sRow, int sCol){
-    //To Do: add pawn move generation
+
+    vector<Move> moves;
+
+    //logic white pawn
+    if(isWhite(board[sRow][sCol])){
+
+        //pawn on first rank
+        //4 possible moves
+        if(sRow == 6){
+            //basic move structure
+            for(int i = -1; i < 2; i++){
+                //just 1 up
+                int targetRow = sRow - 1;
+                int targetCol = sCol + i;
+
+                // Check if target is on board
+                if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+                    //take diagonally
+                    if(isBlack(board[targetRow][targetCol]) && targetCol != sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                    //or move up 1 or 2 up on start square
+                    else if(isEmpty(board[targetRow][targetCol]) &&  targetCol == sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                        // Check if 2-square move is also on board and empty
+                        if(targetRow-1 >= 0 && isEmpty(board[targetRow-1][targetCol])){
+                            moves.push_back(Move{sRow, sCol, targetRow-1, targetCol});
+                        }
+                    }
+                }
+            }   
+        }
+
+        else{
+            //basic move structure
+            for(int i = -1; i < 2; i++){
+                //just 1 up
+                int targetRow = sRow - 1;
+                int targetCol = sCol + i;
+
+                // Check if target is on board
+                if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+                    //take diagonally
+                    if(isBlack(board[targetRow][targetCol]) && targetCol != sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                    //or move up 1 square
+                    else if(isEmpty(board[targetRow][targetCol]) &&  targetCol == sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                }
+            }   
+        }
+    }
+
+    else{
+         //pawn on first rank
+        //4 possible moves
+        if(sRow == 1){
+            //basic move structure
+            for(int i = -1; i < 2; i++){
+                //just 1 down
+                int targetRow = sRow + 1;
+                int targetCol = sCol + i;
+
+                // Check if target is on board
+                if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+                    //take diagonally
+                    if(isWhite(board[targetRow][targetCol]) && targetCol != sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                    //or move down 1 or 2 on start square
+                    else if(isEmpty(board[targetRow][targetCol]) &&  targetCol == sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                        // Check if 2-square move is also on board and empty
+                        if(targetRow+1 < 8 && isEmpty(board[targetRow+1][targetCol])){
+                            moves.push_back(Move{sRow, sCol, targetRow+1, targetCol});
+                        }
+                    }
+                }
+            }   
+        }
+
+        else{
+            //basic move structure
+            for(int i = -1; i < 2; i++){
+                //just 1 down
+                int targetRow = sRow + 1;
+                int targetCol = sCol + i;
+
+                // Check if target is on board
+                if(targetRow >= 0 && targetRow < 8 && targetCol >= 0 && targetCol < 8){
+                    //take diagonally
+                    if(isWhite(board[targetRow][targetCol]) && targetCol != sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                    //or move down 1 square
+                    else if(isEmpty(board[targetRow][targetCol]) &&  targetCol == sCol){
+                        moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+                    }
+                }
+            }   
+        }
+    }
+
+    return moves;
 }
