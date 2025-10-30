@@ -30,11 +30,26 @@ set(HEADERS
     src/game.hpp
 )
 
-# Create executable
+# Common library sources (shared by all executables)
+set(LIB_SOURCES
+    src/board.cpp
+    src/moveGeneration.cpp
+    src/game.cpp
+)
+
+# Create main executable
 add_executable(chess_engine ${SOURCES} ${HEADERS})
 
-# Set output directories
-set_target_properties(chess_engine PROPERTIES
+# Create test and demo executables
+add_executable(chess_test src/test.cpp ${LIB_SOURCES})
+add_executable(chess_debug src/debug.cpp ${LIB_SOURCES})
+add_executable(chess_demo_promotion src/demo_promotion.cpp ${LIB_SOURCES})
+add_executable(chess_test_promotion src/test_promotion.cpp ${LIB_SOURCES})
+add_executable(chess_loop_test src/loop_test.cpp ${LIB_SOURCES})
+
+# Set output directories for all executables
+set_target_properties(chess_engine chess_test chess_debug chess_demo_promotion chess_test_promotion chess_loop_test
+    PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"
