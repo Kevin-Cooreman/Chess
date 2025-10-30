@@ -74,3 +74,90 @@ vector<Move> generateRookMoves(int sRow, int sCol){
     }
     return moves;
 }
+
+vector<Move> generateBishopMoves(int sRow, int sCol){
+    vector<Move> moves;
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow - i;  // up
+        int targetCol = sCol - i;  // left
+        
+        if(targetRow < 0 || targetCol < 0) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            break;
+        }
+        else{
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+        }
+    }
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow - i;  // up
+        int targetCol = sCol + i;  // right
+        
+        if(targetRow < 0 || targetCol > 7) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            break;
+        }
+        else{
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+        }
+    }
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow + i;  // down
+        int targetCol = sCol + i;  // right
+        
+        if(targetRow > 7 || targetCol > 7) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            break;
+        }
+        else{
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+        }
+    }
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow + i;  // down
+        int targetCol = sCol - i;  // left
+        
+        if(targetRow > 7 || targetCol < 0) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+            break;
+        }
+        else{
+            moves.push_back(Move{sRow, sCol, targetRow, targetCol});
+        }
+    }
+
+    return moves;
+}
+
+vector<Move> generateQueenMoves(int sRow, int sCol){
+    vector<Move> moves = generateRookMoves(sRow, sCol);  // Start with rook moves
+    
+    vector<Move> bishopMoves = generateBishopMoves(sRow, sCol);
+    moves.insert(moves.end(), bishopMoves.begin(), bishopMoves.end());  // Add bishop moves
+    
+    return moves;
+}
