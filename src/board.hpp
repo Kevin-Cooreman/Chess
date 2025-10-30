@@ -28,6 +28,18 @@ const int BLACK_KING = 0b1110;
 
 extern int board[8][8];  // Declaration only
 
+// Game state tracking for special moves
+extern bool whiteKingMoved;
+extern bool blackKingMoved;
+extern bool whiteKingsideRookMoved;
+extern bool whiteQueensideRookMoved;
+extern bool blackKingsideRookMoved;
+extern bool blackQueensideRookMoved;
+
+// En passant target square (-1 means no en passant available)
+extern int enPassantTargetRow;
+extern int enPassantTargetCol;
+
 //simple helper functions
 inline bool isEmpty(int square){return square == 0;}
 inline bool isWhite(int square){return square > 0 && !(square & 0b1000);}

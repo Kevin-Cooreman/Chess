@@ -7,6 +7,18 @@ using namespace std;
 
 int board[8][8];
 
+// Game state tracking for special moves
+bool whiteKingMoved = false;
+bool blackKingMoved = false;
+bool whiteKingsideRookMoved = false;
+bool whiteQueensideRookMoved = false;
+bool blackKingsideRookMoved = false;
+bool blackQueensideRookMoved = false;
+
+// En passant target square (-1 means no en passant available)
+int enPassantTargetRow = -1;
+int enPassantTargetCol = -1;
+
 // initialise empty board
 void initBoard(){
     for(int i = 0; i < 8; i++) {
