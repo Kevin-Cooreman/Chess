@@ -136,6 +136,90 @@ bool ChessGame::makePlayerMove(const string& moveStr) {
     return true;
 }
 
+bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
+    if (gameOver) {
+        cout << "Game is over! " << gameResult << endl;
+        return false;
+    }
+    
+    Move playerMove = parseMove(moveStr);
+    
+    // Check if it's a valid move structure
+    if (playerMove.startRow == -1) {
+        cout << "Invalid move format! Use format like 'e2e4' or 'e2-e4'\n";
+        return false;
+    }
+    
+    // Check if this is a pawn promotion and set the promotion piece
+    if (isPawnPromotion(playerMove.startRow, playerMove.startColumn, 
+                       playerMove.targetRow, playerMove.targetColumn)) {
+        
+        // Update the move with the promotion piece
+        playerMove.moveType = PAWN_PROMOTION;
+        switch(promotionPiece) {
+            case 'q':
+                playerMove.promotionPiece = isWhiteTurn ? WHITE_QUEEN : BLACK_QUEEN;
+                break;
+            case 'r':
+                playerMove.promotionPiece = isWhiteTurn ? WHITE_ROOK : BLACK_ROOK;
+                break;
+            case 'b':
+                playerMove.promotionPiece = isWhiteTurn ? WHITE_BISHOP : BLACK_BISHOP;
+                break;
+            case 'n':
+                playerMove.promotionPiece = isWhiteTurn ? WHITE_KNIGHT : BLACK_KNIGHT;
+                break;
+            default:
+                cout << "Invalid promotion piece! Using queen by default.\n";
+                playerMove.promotionPiece = isWhiteTurn ? WHITE_QUEEN : BLACK_QUEEN;
+                break;
+        }
+    }
+    
+    // Get all legal moves
+    vector<Move> legalMoves = getLegalMoves();
+    
+    // Find matching legal move
+    Move* matchingMove = nullptr;
+    for (Move& move : legalMoves) {
+        if (move.startRow == playerMove.startRow && 
+            move.startColumn == playerMove.startColumn &&
+            move.targetRow == playerMove.targetRow && 
+            move.targetColumn == playerMove.targetColumn) {
+            
+            // For pawn promotion, match the specific promotion piece
+            if (move.moveType == PAWN_PROMOTION) {
+                if (move.promotionPiece == playerMove.promotionPiece) {
+                    matchingMove = &move;
+                    break;
+                }
+            } else {
+                matchingMove = &move;
+                break;
+            }
+        }
+    }
+    
+    if (!matchingMove) {
+        cout << "Illegal move! Try again.\n";
+        return false;
+    }
+    
+    // Execute the move
+    makeMove(*matchingMove);
+    gameHistory.push_back(*matchingMove);
+    
+    // Switch turns
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Update game status
+    updateGameStatus();
+    
+    cout << "Move: " << moveToString(*matchingMove) << endl;
+    
+    return true;
+}
+
 Move ChessGame::parseMove(const string& moveStr) const {
     string cleaned = moveStr;
     

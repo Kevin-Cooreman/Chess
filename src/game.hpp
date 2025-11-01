@@ -24,6 +24,7 @@ public:
     
     // Move handling
     bool makePlayerMove(const string& moveStr);
+    bool makePlayerMove(const string& moveStr, char promotionPiece);
     vector<Move> getLegalMoves() const;
     
     // Input/Output

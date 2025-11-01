@@ -8,7 +8,9 @@
 #endif
 
 ChessGUI::ChessGUI(ChessGame& chessGame) 
-    : game(chessGame), selectedRow(-1), selectedCol(-1), pieceSelected(false), 
+    : game(chessGame), selectedRow(-1), selectedCol(-1), pieceSelected(false),
+      showPromotionDialog(false), promotionRow(-1), promotionCol(-1),
+      promotionTargetRow(-1), promotionTargetCol(-1), isWhitePromotion(true),
       fontLoaded(false), texturesLoaded(false) {
     
     initializeWindow();
@@ -126,6 +128,32 @@ void ChessGUI::handleEvents() {
 }
 
 void ChessGUI::handleMouseClick(int mouseX, int mouseY) {
+    // Check if promotion dialog is showing and handle clicks on it
+    if (showPromotionDialog) {
+        const int dialogWidth = 320;
+        const int dialogHeight = 120;
+        const int dialogX = (WINDOW_WIDTH - dialogWidth) / 2;
+        const int dialogY = (WINDOW_HEIGHT - dialogHeight) / 2;
+        const int pieceSize = 60;
+        const int startX = dialogX + 20;
+        const int startY = dialogY + 45;
+        
+        // Check if click is within any of the piece options
+        for (int i = 0; i < 4; i++) {
+            int x = startX + i * (pieceSize + 10);
+            int y = startY;
+            
+            if (mouseX >= x && mouseX <= x + pieceSize && 
+                mouseY >= y && mouseY <= y + pieceSize) {
+                handlePromotionChoice(i);
+                return;
+            }
+        }
+        
+        // Click outside dialog - ignore
+        return;
+    }
+
     int row, col;
     screenToBoard(mouseX, mouseY, row, col);
     
@@ -160,6 +188,7 @@ void ChessGUI::render() {
     drawLegalMoves();
     drawPieces();
     drawUI();
+    drawPromotionDialog();
     
     window->display();
 }
@@ -339,6 +368,12 @@ void ChessGUI::selectPiece(int row, int col) {
 void ChessGUI::tryMove(int row, int col) {
     if (!pieceSelected) return;
     
+    // Check if this is a pawn promotion move
+    if (isPromotionMove(selectedRow, selectedCol, row, col)) {
+        displayPromotionDialog(selectedRow, selectedCol, row, col, game.isWhiteToMove());
+        return;
+    }
+    
     // Create move string and try to make the move
     std::string moveStr = game.coordinateToString(selectedRow, selectedCol) + 
                          game.coordinateToString(row, col);
@@ -497,6 +532,136 @@ void ChessGUI::drawGeometricPiece(int piece, int screenX, int screenY) {
             crossH.setPosition(centerX, centerY - pieceSize * 0.3f);
             window->draw(crossH);
             break;
+        }
+    }
+}
+
+bool ChessGUI::isPromotionMove(int fromRow, int fromCol, int toRow, int toCol) const {
+    int piece = board[fromRow][fromCol];
+    
+    // Check if it's a pawn
+    if ((piece & 0b0111) != 0b0001) return false;
+    
+    // Check if pawn reaches promotion rank
+    bool isWhitePawn = isWhite(piece);
+    
+    // Suppress unused parameter warning
+    (void)toCol;
+    
+    return (isWhitePawn && toRow == 0) || (!isWhitePawn && toRow == 7);
+}
+
+void ChessGUI::displayPromotionDialog(int fromRow, int fromCol, int toRow, int toCol, bool isWhite) {
+    showPromotionDialog = true;
+    promotionRow = fromRow;
+    promotionCol = fromCol;
+    promotionTargetRow = toRow;
+    promotionTargetCol = toCol;
+    isWhitePromotion = isWhite;
+}
+
+void ChessGUI::handlePromotionChoice(int choice) {
+    if (!showPromotionDialog) return;
+    
+    char promotionPiece;
+    switch(choice) {
+        case 0: promotionPiece = 'q'; break; // Queen
+        case 1: promotionPiece = 'r'; break; // Rook
+        case 2: promotionPiece = 'b'; break; // Bishop
+        case 3: promotionPiece = 'n'; break; // Knight
+        default: return; // Invalid choice
+    }
+    
+    // Create move string and make the move with promotion
+    std::string moveStr = game.coordinateToString(promotionRow, promotionCol) + 
+                         game.coordinateToString(promotionTargetRow, promotionTargetCol);
+    
+    if (game.makePlayerMove(moveStr, promotionPiece)) {
+        clearSelection();
+        updateLegalMoves();
+    }
+    
+    // Hide the promotion dialog
+    showPromotionDialog = false;
+}
+
+void ChessGUI::drawPromotionDialog() {
+    if (!showPromotionDialog) return;
+    
+    // Draw a semi-transparent overlay
+    sf::RectangleShape overlay(sf::Vector2f(WINDOW_WIDTH, WINDOW_HEIGHT));
+    overlay.setFillColor(sf::Color(0, 0, 0, 128));
+    window->draw(overlay);
+    
+    // Dialog dimensions
+    const int dialogWidth = 320;
+    const int dialogHeight = 120;
+    const int dialogX = (WINDOW_WIDTH - dialogWidth) / 2;
+    const int dialogY = (WINDOW_HEIGHT - dialogHeight) / 2;
+    
+    // Draw dialog background
+    sf::RectangleShape dialog(sf::Vector2f(dialogWidth, dialogHeight));
+    dialog.setPosition(dialogX, dialogY);
+    dialog.setFillColor(sf::Color(240, 240, 240));
+    dialog.setOutlineThickness(2);
+    dialog.setOutlineColor(sf::Color(80, 80, 80));
+    window->draw(dialog);
+    
+    // Draw title
+    sf::Text title("Choose promotion piece:", font, 20);
+    title.setFillColor(sf::Color::Black);
+    title.setPosition(dialogX + 10, dialogY + 10);
+    if (fontLoaded) {
+        window->draw(title);
+    }
+    
+    // Draw piece options (4 pieces in a row)
+    const int pieceSize = 60;
+    const int startX = dialogX + 20;
+    const int startY = dialogY + 45;
+    
+    // Queen, Rook, Bishop, Knight
+    std::vector<int> pieces;
+    if (isWhitePromotion) {
+        pieces = {WHITE_QUEEN, WHITE_ROOK, WHITE_BISHOP, WHITE_KNIGHT};
+    } else {
+        pieces = {BLACK_QUEEN, BLACK_ROOK, BLACK_BISHOP, BLACK_KNIGHT};
+    }
+    
+    for (int i = 0; i < 4; i++) {
+        int x = startX + i * (pieceSize + 10);
+        int y = startY;
+        
+        // Draw background for piece
+        sf::RectangleShape pieceBg(sf::Vector2f(pieceSize, pieceSize));
+        pieceBg.setPosition(x, y);
+        pieceBg.setFillColor(sf::Color(200, 200, 200));
+        pieceBg.setOutlineThickness(1);
+        pieceBg.setOutlineColor(sf::Color(100, 100, 100));
+        window->draw(pieceBg);
+        
+        // Draw the piece (try texture first, then geometric fallback)
+        int piece = pieces[i];
+        if (texturesLoaded && pieceTextures.find(piece) != pieceTextures.end()) {
+            sf::Sprite pieceSprite;
+            pieceSprite.setTexture(pieceTextures[piece]);
+            
+            // Scale sprite to fit
+            sf::Vector2u textureSize = pieceTextures[piece].getSize();
+            float scale = (pieceSize * 0.8f) / std::max(textureSize.x, textureSize.y);
+            pieceSprite.setScale(scale, scale);
+            
+            // Center the sprite
+            sf::FloatRect spriteBounds = pieceSprite.getLocalBounds();
+            pieceSprite.setPosition(
+                x + (pieceSize - spriteBounds.width * scale) / 2,
+                y + (pieceSize - spriteBounds.height * scale) / 2
+            );
+            
+            window->draw(pieceSprite);
+        } else {
+            // Fallback to geometric shape
+            drawGeometricPiece(piece, x, y);
         }
     }
 }

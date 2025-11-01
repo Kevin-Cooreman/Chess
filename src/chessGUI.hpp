@@ -29,6 +29,14 @@ private:
     bool pieceSelected;
     std::vector<Move> legalMoves;
     
+    // Promotion dialog state
+    bool showPromotionDialog;
+    int promotionRow;
+    int promotionCol;
+    int promotionTargetRow;
+    int promotionTargetCol;
+    bool isWhitePromotion;
+    
     // Fonts and text
     sf::Font font;
     bool fontLoaded;
@@ -63,6 +71,7 @@ private:
     void drawGeometricPiece(int piece, int screenX, int screenY);
     void drawSelectedSquare();
     void drawLegalMoves();
+    void drawPromotionDialog();
     void drawUI();
     
     // Utility functions
@@ -77,4 +86,9 @@ private:
     void tryMove(int row, int col);
     void clearSelection();
     void updateLegalMoves();
+    
+    // Promotion handling
+    void displayPromotionDialog(int fromRow, int fromCol, int toRow, int toCol, bool isWhite);
+    void handlePromotionChoice(int choice);
+    bool isPromotionMove(int fromRow, int fromCol, int toRow, int toCol) const;
 };
