@@ -7,7 +7,8 @@ A complete chess engine built from scratch in C++17 with a console-based interfa
 - ♟️ Complete chess rule implementation
 - 🏰 All special moves (castling, en passant, pawn promotion)
 - ✅ Legal move validation and check/checkmate detection
-- 🖥️ Enhanced console interface with Unicode chess board display
+- �️ **SFML GUI Version**: Modern graphical interface with mouse controls
+- �🖥️ **Console Version**: Enhanced console interface with Unicode chess board display
 - 🎮 Interactive gameplay with intuitive move input
 
 ## Project Structure
@@ -25,6 +26,7 @@ src/
 ### Prerequisites
 - C++17 compatible compiler (GCC/MinGW recommended)
 - CMake 3.20 or higher
+- SFML 2.6.1 (included in external directory)
 
 ### Build Instructions
 
@@ -41,19 +43,28 @@ src/
    ```
 
 3. Run the chess engine:
-   ```bash
-   ./build/bin/chess_engine.exe
-   ```
+   - **GUI Version (SFML)**: `./build/bin/chess_gui.exe`
+   - **Console Version**: `./build/bin/chess_console.exe`
 
 ## How to Play
 
-### Move Input Formats
+### GUI Version (chess_gui.exe)
+- **Mouse Controls**: Click to select pieces and make moves
+- **Visual Feedback**: 
+  - Selected pieces highlighted in yellow
+  - Legal moves shown as green circles
+  - Check warnings displayed in red text
+- **Game Status**: Current player and game state shown at top
+- **Keyboard**: ESC to deselect current piece
+
+### Console Version (chess_console.exe)
+#### Move Input Formats
 - **Standard moves**: `e2e4`, `e2-e4`, `Nf3`, etc.
 - **Castling**: `e1g1` (king side), `e1c1` (queen side)
 - **Pawn promotion**: `e7e8q` (specify piece) or interactive choice
 - **En passant**: Handled automatically when legal
 
-### Available Commands
+#### Available Commands
 - `moves` - Show all legal moves for current player
 - `help` - Display command help
 - `quit` - Exit the game

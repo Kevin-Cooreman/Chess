@@ -46,3 +46,6 @@ Thumbs.db
 
 # Test output
 test_output/
+
+# SFML archives (keep extracted files)
+external/*.zip
