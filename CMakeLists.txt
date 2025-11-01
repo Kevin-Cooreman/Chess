@@ -96,6 +96,11 @@ foreach(DLL ${SFML_DLLS})
         ${DLL} $<TARGET_FILE_DIR:chess_gui>)
 endforeach()
 
+# Copy assets directory to build directory
+add_custom_command(TARGET chess_gui POST_BUILD
+    COMMAND ${CMAKE_COMMAND} -E copy_directory
+    ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess_gui>/assets)
+
 # Set output directories
 set_target_properties(chess_console chess_gui PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"

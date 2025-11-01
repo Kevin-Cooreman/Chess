@@ -2,6 +2,7 @@
 #include <SFML/Graphics.hpp>
 #include "game.hpp"
 #include <memory>
+#include <map>
 
 class ChessGUI {
 private:
@@ -32,6 +33,10 @@ private:
     sf::Font font;
     bool fontLoaded;
     
+    // Chess piece textures
+    std::map<int, sf::Texture> pieceTextures;
+    bool texturesLoaded;
+    
 public:
     ChessGUI(ChessGame& chessGame);
     ~ChessGUI() = default;
@@ -45,6 +50,7 @@ private:
     void initializeWindow();
     void initializeColors();
     bool loadFont();
+    bool loadPieceTextures();
     
     // Event handling
     void handleEvents();
@@ -54,6 +60,7 @@ private:
     void render();
     void drawBoard();
     void drawPieces();
+    void drawGeometricPiece(int piece, int screenX, int screenY);
     void drawSelectedSquare();
     void drawLegalMoves();
     void drawUI();

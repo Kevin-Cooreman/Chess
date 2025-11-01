@@ -1,12 +1,20 @@
 #include "chessGUI.hpp"
 #include <iostream>
+#include <cmath>
+#include <algorithm>
+
+#ifndef M_PI
+#define M_PI 3.14159265358979323846
+#endif
 
 ChessGUI::ChessGUI(ChessGame& chessGame) 
-    : game(chessGame), selectedRow(-1), selectedCol(-1), pieceSelected(false), fontLoaded(false) {
+    : game(chessGame), selectedRow(-1), selectedCol(-1), pieceSelected(false), 
+      fontLoaded(false), texturesLoaded(false) {
     
     initializeWindow();
     initializeColors();
     loadFont();
+    texturesLoaded = loadPieceTextures();
     updateLegalMoves();
 }
 
@@ -27,19 +35,57 @@ void ChessGUI::initializeColors() {
 }
 
 bool ChessGUI::loadFont() {
-    // Try to load a system font for chess pieces (Unicode symbols)
-    // On Windows, we can try to load a common font
-    if (font.loadFromFile("C:/Windows/Fonts/arial.ttf") ||
+    // Try to load fonts that support Unicode chess symbols
+    // These fonts are more likely to have proper chess piece glyphs
+    if (font.loadFromFile("C:/Windows/Fonts/seguisym.ttf") ||      // Segoe UI Symbol (best for Unicode)
+        font.loadFromFile("C:/Windows/Fonts/arial.ttf") ||
         font.loadFromFile("C:/Windows/Fonts/calibri.ttf") ||
-        font.loadFromFile("arial.ttf") ||
-        font.loadFromFile("calibri.ttf")) {
+        font.loadFromFile("C:/Windows/Fonts/consola.ttf") ||       // Consolas (monospace, good for symbols)
+        font.loadFromFile("C:/Windows/Fonts/times.ttf")) {
         fontLoaded = true;
+        std::cout << "Font loaded successfully for chess pieces.\n";
         return true;
     }
     
-    std::cout << "Warning: Could not load font. Using default font.\n";
+    std::cout << "Warning: Could not load system font. Using SFML default font.\n";
+    std::cout << "Chess pieces will be displayed as text letters.\n";
     fontLoaded = false;
     return false;
+}
+
+bool ChessGUI::loadPieceTextures() {
+    // Define piece filenames
+    std::map<int, std::string> pieceFiles = {
+        {WHITE_PAWN,   "assets/pieces/white_pawn.png"},
+        {WHITE_ROOK,   "assets/pieces/white_rook.png"},
+        {WHITE_KNIGHT, "assets/pieces/white_knight.png"},
+        {WHITE_BISHOP, "assets/pieces/white_bishop.png"},
+        {WHITE_QUEEN,  "assets/pieces/white_queen.png"},
+        {WHITE_KING,   "assets/pieces/white_king.png"},
+        {BLACK_PAWN,   "assets/pieces/black_pawn.png"},
+        {BLACK_ROOK,   "assets/pieces/black_rook.png"},
+        {BLACK_KNIGHT, "assets/pieces/black_knight.png"},
+        {BLACK_BISHOP, "assets/pieces/black_bishop.png"},
+        {BLACK_QUEEN,  "assets/pieces/black_queen.png"},
+        {BLACK_KING,   "assets/pieces/black_king.png"}
+    };
+    
+    int loadedCount = 0;
+    for (const auto& pair : pieceFiles) {
+        if (pieceTextures[pair.first].loadFromFile(pair.second)) {
+            loadedCount++;
+        } else {
+            std::cout << "Warning: Could not load " << pair.second << std::endl;
+        }
+    }
+    
+    if (loadedCount > 0) {
+        std::cout << "Loaded " << loadedCount << "/12 piece textures successfully.\n";
+        return loadedCount == 12; // Return true only if all textures loaded
+    } else {
+        std::cout << "No piece textures loaded. Using geometric shapes.\n";
+        return false;
+    }
 }
 
 void ChessGUI::run() {
@@ -138,32 +184,39 @@ void ChessGUI::drawBoard() {
 }
 
 void ChessGUI::drawPieces() {
-    if (!fontLoaded) return;
-    
-    sf::Text pieceText;
-    pieceText.setFont(font);
-    pieceText.setCharacterSize(48);
-    
     for (int row = 0; row < 8; row++) {
         for (int col = 0; col < 8; col++) {
             int piece = board[row][col];
             if (isEmpty(piece)) continue;
             
-            std::string symbol = getPieceSymbol(piece);
-            pieceText.setString(symbol);
-            pieceText.setFillColor(getPieceColor(piece));
-            
-            // Center the piece in the square
-            sf::FloatRect textBounds = pieceText.getLocalBounds();
             int screenX = BOARD_OFFSET_X + col * SQUARE_SIZE;
             int screenY = BOARD_OFFSET_Y + row * SQUARE_SIZE;
             
-            pieceText.setPosition(
-                screenX + (SQUARE_SIZE - textBounds.width) / 2,
-                screenY + (SQUARE_SIZE - textBounds.height) / 2 - 5
-            );
-            
-            window->draw(pieceText);
+            // Try to use PNG textures first
+            if (texturesLoaded && pieceTextures.find(piece) != pieceTextures.end()) {
+                sf::Sprite pieceSprite;
+                pieceSprite.setTexture(pieceTextures[piece]);
+                
+                // Scale the sprite to fit nicely in the square
+                sf::Vector2u textureSize = pieceTextures[piece].getSize();
+                float scaleX = (SQUARE_SIZE * 0.8f) / textureSize.x;
+                float scaleY = (SQUARE_SIZE * 0.8f) / textureSize.y;
+                float scale = std::min(scaleX, scaleY); // Use smaller scale to fit
+                
+                pieceSprite.setScale(scale, scale);
+                
+                // Center the sprite in the square
+                sf::FloatRect spriteBounds = pieceSprite.getLocalBounds();
+                pieceSprite.setPosition(
+                    screenX + (SQUARE_SIZE - spriteBounds.width * scale) / 2,
+                    screenY + (SQUARE_SIZE - spriteBounds.height * scale) / 2
+                );
+                
+                window->draw(pieceSprite);
+            } else {
+                // Fallback to geometric shapes if textures not available
+                drawGeometricPiece(piece, screenX, screenY);
+            }
         }
     }
 }
@@ -200,11 +253,16 @@ void ChessGUI::drawLegalMoves() {
 }
 
 void ChessGUI::drawUI() {
-    if (!fontLoaded) return;
-    
     sf::Text gameInfo;
-    gameInfo.setFont(font);
-    gameInfo.setCharacterSize(24);
+    
+    // Use loaded font if available, otherwise use SFML's default font
+    if (fontLoaded) {
+        gameInfo.setFont(font);
+        gameInfo.setCharacterSize(24);
+    } else {
+        gameInfo.setCharacterSize(20);  // Slightly smaller for default font
+    }
+    
     gameInfo.setFillColor(sf::Color::White);
     
     std::string infoText = game.isWhiteToMove() ? "White to move" : "Black to move";
@@ -239,24 +297,26 @@ bool ChessGUI::isValidSquare(int row, int col) const {
 }
 
 sf::Color ChessGUI::getPieceColor(int piece) const {
-    return isWhite(piece) ? sf::Color::White : sf::Color::Black;
+    // Use colors that contrast well with the board
+    return isWhite(piece) ? sf::Color(255, 255, 255) : sf::Color(30, 30, 30);
 }
 
 std::string ChessGUI::getPieceSymbol(int piece) const {
-    // Unicode chess symbols
+    // For now, use clear text letters that we know work
+    // We can try different Unicode symbols or use geometric shapes instead
     switch(piece) {
-        case WHITE_PAWN:   return "♙";
-        case WHITE_ROOK:   return "♖";
-        case WHITE_KNIGHT: return "♘";
-        case WHITE_BISHOP: return "♗";
-        case WHITE_QUEEN:  return "♕";
-        case WHITE_KING:   return "♔";
-        case BLACK_PAWN:   return "♟";
-        case BLACK_ROOK:   return "♜";
-        case BLACK_KNIGHT: return "♞";
-        case BLACK_BISHOP: return "♝";
-        case BLACK_QUEEN:  return "♛";
-        case BLACK_KING:   return "♚";
+        case WHITE_PAWN:   return "P";
+        case WHITE_ROOK:   return "R";
+        case WHITE_KNIGHT: return "N";
+        case WHITE_BISHOP: return "B";
+        case WHITE_QUEEN:  return "Q";
+        case WHITE_KING:   return "K";
+        case BLACK_PAWN:   return "p";
+        case BLACK_ROOK:   return "r";
+        case BLACK_KNIGHT: return "n";
+        case BLACK_BISHOP: return "b";
+        case BLACK_QUEEN:  return "q";
+        case BLACK_KING:   return "k";
         default:           return " ";
     }
 }
@@ -298,4 +358,145 @@ void ChessGUI::clearSelection() {
 
 void ChessGUI::updateLegalMoves() {
     legalMoves = game.getLegalMoves();
+}
+
+void ChessGUI::drawGeometricPiece(int piece, int screenX, int screenY) {
+    const float pieceSize = SQUARE_SIZE * 0.7f;
+    const float centerX = screenX + SQUARE_SIZE / 2.0f;
+    const float centerY = screenY + SQUARE_SIZE / 2.0f;
+    
+    // Better colors with more contrast
+    sf::Color pieceColor = isWhite(piece) ? sf::Color(240, 240, 240) : sf::Color(40, 40, 40);
+    sf::Color outlineColor = isWhite(piece) ? sf::Color(60, 60, 60) : sf::Color(200, 200, 200);
+    
+    int pieceType = piece & 0b0111;
+    
+    switch(pieceType) {
+        case 0b0001: { // Pawn - circle with base
+            // Main body
+            sf::CircleShape pawn(pieceSize * 0.25f);
+            pawn.setFillColor(pieceColor);
+            pawn.setOutlineColor(outlineColor);
+            pawn.setOutlineThickness(3);
+            pawn.setOrigin(pieceSize * 0.25f, pieceSize * 0.25f);
+            pawn.setPosition(centerX, centerY - 5);
+            window->draw(pawn);
+            
+            // Base
+            sf::RectangleShape base(sf::Vector2f(pieceSize * 0.4f, pieceSize * 0.15f));
+            base.setFillColor(pieceColor);
+            base.setOutlineColor(outlineColor);
+            base.setOutlineThickness(2);
+            base.setOrigin(pieceSize * 0.2f, pieceSize * 0.075f);
+            base.setPosition(centerX, centerY + pieceSize * 0.2f);
+            window->draw(base);
+            break;
+        }
+        case 0b0010: { // Rook - castle-like rectangle with merlons
+            // Main body
+            sf::RectangleShape rook(sf::Vector2f(pieceSize * 0.5f, pieceSize * 0.7f));
+            rook.setFillColor(pieceColor);
+            rook.setOutlineColor(outlineColor);
+            rook.setOutlineThickness(3);
+            rook.setOrigin(pieceSize * 0.25f, pieceSize * 0.35f);
+            rook.setPosition(centerX, centerY);
+            window->draw(rook);
+            
+            // Merlons (castle battlements)
+            for (int i = 0; i < 3; i++) {
+                sf::RectangleShape merlon(sf::Vector2f(pieceSize * 0.12f, pieceSize * 0.15f));
+                merlon.setFillColor(pieceColor);
+                merlon.setOutlineColor(outlineColor);
+                merlon.setOutlineThickness(2);
+                merlon.setOrigin(pieceSize * 0.06f, pieceSize * 0.075f);
+                merlon.setPosition(centerX - pieceSize * 0.18f + i * pieceSize * 0.18f, centerY - pieceSize * 0.42f);
+                window->draw(merlon);
+            }
+            break;
+        }
+        case 0b0011: { // Knight - horse head shape
+            sf::CircleShape knight(pieceSize * 0.3f, 6);
+            knight.setFillColor(pieceColor);
+            knight.setOutlineColor(outlineColor);
+            knight.setOutlineThickness(3);
+            knight.setOrigin(pieceSize * 0.3f, pieceSize * 0.3f);
+            knight.setPosition(centerX, centerY);
+            knight.setRotation(30);
+            window->draw(knight);
+            
+            // Ear/mane
+            sf::CircleShape ear(pieceSize * 0.1f);
+            ear.setFillColor(outlineColor);
+            ear.setOrigin(pieceSize * 0.1f, pieceSize * 0.1f);
+            ear.setPosition(centerX - 8, centerY - 15);
+            window->draw(ear);
+            break;
+        }
+        case 0b0100: { // Bishop - pointed hat shape
+            // Main body
+            sf::CircleShape bishop(pieceSize * 0.3f);
+            bishop.setFillColor(pieceColor);
+            bishop.setOutlineColor(outlineColor);
+            bishop.setOutlineThickness(3);
+            bishop.setOrigin(pieceSize * 0.3f, pieceSize * 0.3f);
+            bishop.setPosition(centerX, centerY + 5);
+            window->draw(bishop);
+            
+            // Mitre (pointed top)
+            sf::CircleShape mitre(pieceSize * 0.15f, 3);
+            mitre.setFillColor(pieceColor);
+            mitre.setOutlineColor(outlineColor);
+            mitre.setOutlineThickness(2);
+            mitre.setOrigin(pieceSize * 0.15f, pieceSize * 0.15f);
+            mitre.setPosition(centerX, centerY - pieceSize * 0.25f);
+            window->draw(mitre);
+            break;
+        }
+        case 0b0101: { // Queen - circle with multiple crown points
+            // Main body
+            sf::CircleShape queen(pieceSize * 0.35f);
+            queen.setFillColor(pieceColor);
+            queen.setOutlineColor(outlineColor);
+            queen.setOutlineThickness(3);
+            queen.setOrigin(pieceSize * 0.35f, pieceSize * 0.35f);
+            queen.setPosition(centerX, centerY);
+            window->draw(queen);
+            
+            // Crown points (8 points for queen)
+            for (int i = 0; i < 8; i++) {
+                float angle = i * 45.0f * M_PI / 180.0f;
+                sf::CircleShape point(4);
+                point.setFillColor(outlineColor);
+                point.setOrigin(4, 4);
+                point.setPosition(centerX + cos(angle) * pieceSize * 0.45f, 
+                                centerY + sin(angle) * pieceSize * 0.45f);
+                window->draw(point);
+            }
+            break;
+        }
+        case 0b0110: { // King - circle with cross crown
+            // Main body
+            sf::CircleShape king(pieceSize * 0.35f);
+            king.setFillColor(pieceColor);
+            king.setOutlineColor(outlineColor);
+            king.setOutlineThickness(3);
+            king.setOrigin(pieceSize * 0.35f, pieceSize * 0.35f);
+            king.setPosition(centerX, centerY);
+            window->draw(king);
+            
+            // Cross on top
+            sf::RectangleShape crossV(sf::Vector2f(6, pieceSize * 0.4f));
+            crossV.setFillColor(outlineColor);
+            crossV.setOrigin(3, pieceSize * 0.2f);
+            crossV.setPosition(centerX, centerY - pieceSize * 0.3f);
+            window->draw(crossV);
+            
+            sf::RectangleShape crossH(sf::Vector2f(pieceSize * 0.25f, 6));
+            crossH.setFillColor(outlineColor);
+            crossH.setOrigin(pieceSize * 0.125f, 3);
+            crossH.setPosition(centerX, centerY - pieceSize * 0.3f);
+            window->draw(crossH);
+            break;
+        }
+    }
 }
