@@ -12,6 +12,7 @@ void printInstructions() {
     cout << "  - Promotion: e7e8q (optional) or interactive choice when pawn reaches end\n";
     cout << "  - Castling: e1g1 (king moves two squares)\n";
     cout << "  - 'moves' - Show all legal moves\n";
+    cout << "  - 'fen' - Show current FEN string\n";
     cout << "  - 'quit' - Exit the game\n";
     cout << "  - 'help' - Show this help\n";
     cout << "====================\n";
@@ -41,6 +42,8 @@ int main() {
             printInstructions();
         } else if (input == "moves") {
             game.displayLegalMoves();
+        } else if (input == "fen") {
+            cout << "FEN: " << game.getCurrentFEN() << "\n";
         } else if (input.empty()) {
             // If input is empty but stream is still valid, just continue
             cout << "Please enter a move or command.\n";

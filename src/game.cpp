@@ -27,6 +27,11 @@ void ChessGame::startNewGame() {
     blackQueensideRookMoved = false;
     enPassantTargetRow = -1;
     enPassantTargetCol = -1;
+    
+    // Initialize FEN tracking
+    halfmoveClock = 0;
+    fullmoveNumber = 1;
+    updateFEN();
 }
 
 void ChessGame::displayBoard() const {
@@ -37,6 +42,8 @@ void ChessGame::displayBoard() const {
     if (isInCheck()) {
         cout << "** CHECK! **\n";
     }
+    
+    cout << "FEN: " << currentFEN << "\n";
     
     cout << "\n";
 }
@@ -121,12 +128,32 @@ bool ChessGame::makePlayerMove(const string& moveStr) {
         return false;
     }
     
+    // Check if this move resets the halfmove clock (capture or pawn move)
+    int movingPiece = board[matchingMove->startRow][matchingMove->startColumn];
+    int capturedPiece = board[matchingMove->targetRow][matchingMove->targetColumn];
+    bool isPawnMove = (movingPiece & 0b0111) == 0b0001;
+    bool isCapture = !isEmpty(capturedPiece) || matchingMove->moveType == EN_PASSANT;
+    
+    if (isPawnMove || isCapture) {
+        halfmoveClock = 0;
+    } else {
+        halfmoveClock++;
+    }
+    
     // Execute the move
     makeMove(*matchingMove);
     gameHistory.push_back(*matchingMove);
     
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
+    
+    // Increment fullmove number after black's move
+    if (isWhiteTurn) {
+        fullmoveNumber++;
+    }
+    
+    // Update FEN string
+    updateFEN();
     
     // Update game status
     updateGameStatus();
@@ -205,12 +232,32 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
         return false;
     }
     
+    // Check if this move resets the halfmove clock (capture or pawn move)
+    int movingPiece = board[matchingMove->startRow][matchingMove->startColumn];
+    int capturedPiece = board[matchingMove->targetRow][matchingMove->targetColumn];
+    bool isPawnMove = (movingPiece & 0b0111) == 0b0001;
+    bool isCapture = !isEmpty(capturedPiece) || matchingMove->moveType == EN_PASSANT;
+    
+    if (isPawnMove || isCapture) {
+        halfmoveClock = 0;
+    } else {
+        halfmoveClock++;
+    }
+    
     // Execute the move
     makeMove(*matchingMove);
     gameHistory.push_back(*matchingMove);
     
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
+    
+    // Increment fullmove number after black's move
+    if (isWhiteTurn) {
+        fullmoveNumber++;
+    }
+    
+    // Update FEN string
+    updateFEN();
     
     // Update game status
     updateGameStatus();
@@ -382,4 +429,80 @@ char ChessGame::getPromotionChoice() {
         
         cout << "Invalid choice! Please enter q, r, b, or n: ";
     }
+}
+
+string ChessGame::generateFEN() const {
+    string fen = "";
+    
+    // 1. Piece placement (from rank 8 to rank 1)
+    for (int row = 0; row < 8; row++) {
+        int emptyCount = 0;
+        
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            
+            if (isEmpty(piece)) {
+                emptyCount++;
+            } else {
+                // If there were empty squares, add the count first
+                if (emptyCount > 0) {
+                    fen += to_string(emptyCount);
+                    emptyCount = 0;
+                }
+                
+                // Add the piece character
+                char pieceChar = pieceToChar(piece);
+                fen += pieceChar;
+            }
+        }
+        
+        // Add remaining empty squares count if any
+        if (emptyCount > 0) {
+            fen += to_string(emptyCount);
+        }
+        
+        // Add rank separator (except after the last rank)
+        if (row < 7) {
+            fen += '/';
+        }
+    }
+    
+    // 2. Active color
+    fen += ' ';
+    fen += isWhiteTurn ? 'w' : 'b';
+    
+    // 3. Castling availability
+    fen += ' ';
+    string castling = "";
+    if (!whiteKingMoved) {
+        if (!whiteKingsideRookMoved) castling += 'K';
+        if (!whiteQueensideRookMoved) castling += 'Q';
+    }
+    if (!blackKingMoved) {
+        if (!blackKingsideRookMoved) castling += 'k';
+        if (!blackQueensideRookMoved) castling += 'q';
+    }
+    fen += castling.empty() ? "-" : castling;
+    
+    // 4. En passant target square
+    fen += ' ';
+    if (enPassantTargetRow == -1 || enPassantTargetCol == -1) {
+        fen += '-';
+    } else {
+        fen += coordinateToString(enPassantTargetRow, enPassantTargetCol);
+    }
+    
+    // 5. Halfmove clock (for 50-move rule)
+    fen += ' ';
+    fen += to_string(halfmoveClock);
+    
+    // 6. Fullmove number
+    fen += ' ';
+    fen += to_string(fullmoveNumber);
+    
+    return fen;
+}
+
+void ChessGame::updateFEN() {
+    currentFEN = generateFEN();
 }
