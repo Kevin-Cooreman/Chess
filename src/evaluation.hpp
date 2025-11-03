@@ -4,31 +4,33 @@
 #include "moveGeneration.hpp"
 #include <iostream>
 #include <vector>
+#include <string>
 
 using namespace std;
-
-const double PAWN_VALUE = 1.0;
-const double KNIGHT_VALUE = 3.0;
-const double BISHOP_VALUE = 3.0;
-const double ROOK_VALUE = 5.0;
-const double QUEEN_VALUE = 9.0;
 
 // Forward declaration
 class ChessGame;
 
-//evaluation, positive for white , negative for black
-// => if black minimize score, if white maximise
-double evaluation(const ChessGame& game);
+class Evaluation {
+private:
+    // Piece values
+    static constexpr double PAWN_VALUE = 1.0;
+    static constexpr double KNIGHT_VALUE = 3.0;
+    static constexpr double BISHOP_VALUE = 3.0;
+    static constexpr double ROOK_VALUE = 5.0;
+    static constexpr double QUEEN_VALUE = 9.0;
+    
+    // Evaluation components
+    double materialCount(const ChessGame& game) const;
+    double position(const ChessGame& game) const;
+    double kingsafety(const ChessGame& game) const;
+    double pawnStructure(const ChessGame& game) const;
 
-//returns a double fo type consistency
-//gets current game state and calcualtes value
-double materialCount(const ChessGame& game);
-
-//piece positioning
-double position(const ChessGame& game);
-
-//king safety
-double kingsafety(const ChessGame& game);
-
-//pawn structure
-double pawnStructure(const ChessGame& game);
+public:
+    Evaluation() = default;
+    ~Evaluation() = default;
+    
+    // Main evaluation function
+    // Returns positive for white advantage, negative for black advantage
+    double evaluate(const ChessGame& game) const;
+};

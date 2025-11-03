@@ -7,18 +7,21 @@
 #include <string>
 using namespace std;
 
-double evaluation(const ChessGame& game){
+// Main evaluation function
+double Evaluation::evaluate(const ChessGame& game) const {
     double evaluation = 0.0;
 
     evaluation += materialCount(game);
     evaluation += position(game);
+    // Can add more components later:
+    // evaluation += kingsafety(game);
+    // evaluation += pawnStructure(game);
 
     return evaluation;
 }
 
-//count all pieces
-//for each white piece add piece value for each black piece subtract
-double materialCount(const ChessGame& game){
+// Count material value
+double Evaluation::materialCount(const ChessGame& game) const {
     double count = 0;
     string fen = game.getCurrentFEN();
 
@@ -57,11 +60,8 @@ double materialCount(const ChessGame& game){
     return count;
 }
 
-
-// for all regular pieces => most amount of moves penalty if can be taken/ not defended
-// bonus for putting king in check
-// infinite bonus for delivering checkmate
-double position(const ChessGame& game){
+// Evaluate piece positioning based on mobility
+double Evaluation::position(const ChessGame& game) const {
     double positionValue = 0.0;
     string fen = game.getCurrentFEN();
 
@@ -87,12 +87,12 @@ double position(const ChessGame& game){
         
         // evaluate position by nr of moves available
         switch(piece) {
-            case 'p': pieceValue = generatePawnMoves(row, col).size() * 0.1; break;  // Pawn mobility less important
+            case 'p': pieceValue = generatePawnMoves(row, col).size() * 0.1; break;
             case 'n': pieceValue = generateKnightMoves(row, col).size() * 0.1; break;
             case 'b': pieceValue = generateBishopMoves(row, col).size() * 0.05; break;
             case 'r': pieceValue = generateRookMoves(row, col).size() * 0.05; break;
             case 'q': pieceValue = generateQueenMoves(row, col).size() * 0.05; break;
-            case 'k': pieceValue = generateKingMoves(row, col).size() * 0.05; break;  // King mobility matters for endgame
+            case 'k': pieceValue = generateKingMoves(row, col).size() * 0.05; break;
             default: 
                 col++;
                 continue;
@@ -109,4 +109,18 @@ double position(const ChessGame& game){
     }
 
     return positionValue;
+}
+
+// Placeholder for king safety evaluation
+double Evaluation::kingsafety(const ChessGame& game) const {
+    // TODO: Implement king safety evaluation
+    (void)game; // Suppress unused parameter warning
+    return 0.0;
+}
+
+// Placeholder for pawn structure evaluation
+double Evaluation::pawnStructure(const ChessGame& game) const {
+    // TODO: Implement pawn structure evaluation
+    (void)game; // Suppress unused parameter warning
+    return 0.0;
 }

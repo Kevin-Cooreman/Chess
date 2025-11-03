@@ -315,7 +315,8 @@ void ChessGUI::drawUI() {
     
     // Display evaluation
     if (!game.isGameOver()) {
-        double eval = evaluation(game);
+        Evaluation evaluator;
+        double eval = evaluator.evaluate(game);
         
         sf::Text evalText;
         if (fontLoaded) {
