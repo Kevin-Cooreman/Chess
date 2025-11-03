@@ -1,6 +1,6 @@
 # Chess Engine
 
-A complete chess engine built from scratch in C++17 with a console-based interface.
+A complete chess engine built from scratch in C++17.
 
 ## Features
 
