@@ -47,3 +47,11 @@ double materialCount(const ChessGame& game){
 
     return count;
 }
+
+
+// for all regular pieces => most amount of moves penalty if can be taken/ not defended
+// bonus for putting king in check
+// infinite bonus for delivering checkmate
+double position(const ChessGame& game){
+    
+}

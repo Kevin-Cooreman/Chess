@@ -31,7 +31,9 @@ void ChessGame::startNewGame() {
     // Initialize FEN tracking
     halfmoveClock = 0;
     fullmoveNumber = 1;
+    positionHistory.clear();
     updateFEN();
+    recordPosition();  // Record starting position
 }
 
 void ChessGame::displayBoard() const {
@@ -136,6 +138,8 @@ bool ChessGame::makePlayerMove(const string& moveStr) {
     
     if (isPawnMove || isCapture) {
         halfmoveClock = 0;
+        // Clear position history on irreversible moves (captures/pawn moves)
+        positionHistory.clear();
     } else {
         halfmoveClock++;
     }
@@ -152,8 +156,9 @@ bool ChessGame::makePlayerMove(const string& moveStr) {
         fullmoveNumber++;
     }
     
-    // Update FEN string
+    // Update FEN string and record position
     updateFEN();
+    recordPosition();
     
     // Update game status
     updateGameStatus();
@@ -240,6 +245,8 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
     
     if (isPawnMove || isCapture) {
         halfmoveClock = 0;
+        // Clear position history on irreversible moves (captures/pawn moves)
+        positionHistory.clear();
     } else {
         halfmoveClock++;
     }
@@ -256,8 +263,9 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
         fullmoveNumber++;
     }
     
-    // Update FEN string
+    // Update FEN string and record position
     updateFEN();
+    recordPosition();
     
     // Update game status
     updateGameStatus();
@@ -391,6 +399,15 @@ void ChessGame::updateGameStatus() {
     } else if (isInStalemate()) {
         gameOver = true;
         gameResult = "Draw by stalemate!";
+    } else if (isDrawByInsufficientMaterial()) {
+        gameOver = true;
+        gameResult = "Draw by insufficient material!";
+    } else if (isDrawByRepetition()) {
+        gameOver = true;
+        gameResult = "Draw by threefold repetition!";
+    } else if (isDrawByFiftyMoveRule()) {
+        gameOver = true;
+        gameResult = "Draw by fifty-move rule!";
     }
 }
 
@@ -505,4 +522,131 @@ string ChessGame::generateFEN() const {
 
 void ChessGame::updateFEN() {
     currentFEN = generateFEN();
+}
+
+string ChessGame::getPositionKey() const {
+    // Get FEN without halfmove clock and fullmove number
+    // Only the position, active color, castling rights, and en passant matter for repetition
+    string fen = currentFEN;
+    
+    // Find the last two spaces (before halfmove clock and fullmove number)
+    size_t lastSpace = fen.rfind(' ');
+    if (lastSpace != string::npos) {
+        size_t secondLastSpace = fen.rfind(' ', lastSpace - 1);
+        if (secondLastSpace != string::npos) {
+            return fen.substr(0, secondLastSpace);
+        }
+    }
+    
+    return fen;  // Fallback
+}
+
+void ChessGame::recordPosition() {
+    string posKey = getPositionKey();
+    positionHistory[posKey]++;
+}
+
+bool ChessGame::isDrawByRepetition() const {
+    string posKey = getPositionKey();
+    
+    // Check if this position has occurred 3 or more times
+    auto it = positionHistory.find(posKey);
+    if (it != positionHistory.end() && it->second >= 3) {
+        return true;
+    }
+    
+    return false;
+}
+
+bool ChessGame::isDrawByFiftyMoveRule() const {
+    // 50-move rule: 50 moves (100 half-moves) without capture or pawn move
+    return halfmoveClock >= 100;
+}
+
+bool ChessGame::isDrawByInsufficientMaterial() const {
+    // Count pieces on the board
+    int whiteBishops = 0, blackBishops = 0;
+    int whiteKnights = 0, blackKnights = 0;
+    int whitePawns = 0, blackPawns = 0;
+    int whiteRooks = 0, blackRooks = 0;
+    int whiteQueens = 0, blackQueens = 0;
+    
+    // Track bishop square colors (true = light square, false = dark square)
+    bool whiteBishopOnLight = false, whiteBishopOnDark = false;
+    bool blackBishopOnLight = false, blackBishopOnDark = false;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (isEmpty(piece)) continue;
+            
+            int pieceType = piece & 0b0111;
+            bool isLightSquare = (row + col) % 2 == 0;
+            
+            if (isWhite(piece)) {
+                switch (pieceType) {
+                    case 0b0001: whitePawns++; break;
+                    case 0b0010: whiteRooks++; break;
+                    case 0b0011: whiteKnights++; break;
+                    case 0b0100: 
+                        whiteBishops++; 
+                        if (isLightSquare) whiteBishopOnLight = true;
+                        else whiteBishopOnDark = true;
+                        break;
+                    case 0b0101: whiteQueens++; break;
+                }
+            } else {
+                switch (pieceType) {
+                    case 0b0001: blackPawns++; break;
+                    case 0b0010: blackRooks++; break;
+                    case 0b0011: blackKnights++; break;
+                    case 0b0100: 
+                        blackBishops++; 
+                        if (isLightSquare) blackBishopOnLight = true;
+                        else blackBishopOnDark = true;
+                        break;
+                    case 0b0101: blackQueens++; break;
+                }
+            }
+        }
+    }
+    
+    // If there are pawns, rooks, or queens, checkmate is possible
+    if (whitePawns > 0 || blackPawns > 0 || 
+        whiteRooks > 0 || blackRooks > 0 || 
+        whiteQueens > 0 || blackQueens > 0) {
+        return false;
+    }
+    
+    // King vs King
+    if (whiteKnights == 0 && blackKnights == 0 && 
+        whiteBishops == 0 && blackBishops == 0) {
+        return true;
+    }
+    
+    // King + Bishop vs King
+    if (whiteKnights == 0 && blackKnights == 0 &&
+        ((whiteBishops == 1 && blackBishops == 0) ||
+         (whiteBishops == 0 && blackBishops == 1))) {
+        return true;
+    }
+    
+    // King + Knight vs King
+    if (whiteBishops == 0 && blackBishops == 0 &&
+        ((whiteKnights == 1 && blackKnights == 0) ||
+         (whiteKnights == 0 && blackKnights == 1))) {
+        return true;
+    }
+    
+    // King + Bishop vs King + Bishop (same color bishops)
+    if (whiteKnights == 0 && blackKnights == 0 &&
+        whiteBishops == 1 && blackBishops == 1) {
+        // Check if both bishops are on the same color squares
+        if ((whiteBishopOnLight && blackBishopOnLight) ||
+            (whiteBishopOnDark && blackBishopOnDark)) {
+            return true;
+        }
+    }
+    
+    return false;
 }

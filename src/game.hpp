@@ -3,6 +3,7 @@
 #include "moveGeneration.hpp"
 #include <string>
 #include <vector>
+#include <map>
 
 using namespace std;
 
@@ -17,6 +18,9 @@ private:
     string currentFEN;
     int halfmoveClock;  // Moves since last capture or pawn move (for 50-move rule)
     int fullmoveNumber; // Increments after black's move
+    
+    // Position history for threefold repetition (position -> count)
+    map<string, int> positionHistory;
 
 public:
     ChessGame();
@@ -43,6 +47,9 @@ public:
     bool isInCheck() const;
     bool isInCheckmate() const;
     bool isInStalemate() const;
+    bool isDrawByRepetition() const;
+    bool isDrawByFiftyMoveRule() const;
+    bool isDrawByInsufficientMaterial() const;
     
     // Utility
     string coordinateToString(int row, int col) const;
@@ -53,5 +60,7 @@ public:
     // FEN handling
     string generateFEN() const;
     string getCurrentFEN() const { return currentFEN; }
+    string getPositionKey() const;  // Get FEN without move counters for repetition tracking
     void updateFEN();
+    void recordPosition();  // Track position for repetition detection
 };
