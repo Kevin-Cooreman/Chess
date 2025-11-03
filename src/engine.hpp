@@ -13,7 +13,6 @@ private:
     Evaluation evaluator;
 
     // Search algorithm
-    double minimax(ChessGame& game, int depth, bool isMaximizing);
     double alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing);
 
 public:

@@ -21,7 +21,8 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         
         for (const Move& move : legalMoves) {
             game.makeMoveForEngine(move);
-            double eval = minimax(game, depth - 1, false);
+            double eval = alphabeta(game, depth - 1, -numeric_limits<double>::infinity(), 
+                                   numeric_limits<double>::infinity(), false);
             game.undoMove();
             
             if (eval > bestEval) {
@@ -35,7 +36,8 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         
         for (const Move& move : legalMoves) {
             game.makeMoveForEngine(move);
-            double eval = minimax(game, depth - 1, true);
+            double eval = alphabeta(game, depth - 1, -numeric_limits<double>::infinity(), 
+                                   numeric_limits<double>::infinity(), true);
             game.undoMove();
             
             if (eval < bestEval) {
@@ -51,8 +53,9 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     return bestMove;
 }
 
-// Minimax algorithm
-double Engine::minimax(ChessGame& game, int depth, bool isMaximizing) {
+// Alpha-beta pruning (optimized minimax) - implement later
+double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing) {
+    
     if(depth == 0){
         return evaluator.evaluate(game);
     }
@@ -78,9 +81,13 @@ double Engine::minimax(ChessGame& game, int depth, bool isMaximizing) {
         //run through legal moves
         for(const Move& move : legalmoves){
             game.makeMoveForEngine(move);
-            double eval = minimax(game, depth - 1, false);
+            double eval = alphabeta(game, depth - 1, alpha, beta, false);
             game.undoMove();
             maxEval = max(maxEval, eval);
+            alpha = max(alpha, eval);
+            if (beta <= alpha) {
+                break; // Beta cutoff
+            }
         }
         
         return maxEval;
@@ -92,17 +99,15 @@ double Engine::minimax(ChessGame& game, int depth, bool isMaximizing) {
         //run through legal moves
         for(const Move& move : legalmoves){
             game.makeMoveForEngine(move);
-            double eval = minimax(game, depth - 1, true);
+            double eval = alphabeta(game, depth - 1, alpha, beta, true);
             game.undoMove();
             minEval = min(minEval, eval);
+            beta = min(beta, eval);
+            if (beta <= alpha) {
+                break; // Alpha cutoff
+            }
         }
         
         return minEval;
     }
-}
-
-// Alpha-beta pruning (optimized minimax) - implement later
-double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing) {
-    // TODO: Implement alpha-beta pruning
-    return minimax(game, depth, isMaximizing);
 }
