@@ -53,10 +53,10 @@ string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite
     Engine engine1(eval1);
     Engine engine2(eval2);
     
-    // Play 1-3 random opening moves to create variety
+    // Play 2-5 random opening moves to create more variety
     static random_device rd;
     static mt19937 gen(rd());
-    uniform_int_distribution<> openingMovesDist(1, 3);
+    uniform_int_distribution<> openingMovesDist(2, 5);
     int randomOpeningMoves = openingMovesDist(gen);
     
     for (int i = 0; i < randomOpeningMoves && !game.isGameOver(); i++) {
@@ -185,12 +185,13 @@ int main() {
     cout << "Chess Engine Tuning - Self-Play Testing\n";
     cout << "========================================\n\n";
     
-    // Define configurations to test
+    // Define configurations to test - EXTREME DIFFERENCES
     vector<EvalConfig> configs = {
-        {"Current", 10.0, 3.0, 3.0, 0.05},
-        {"MoreMaterial", 15.0, 3.0, 3.0, 0.05},
-        {"LessMobility", 10.0, 1.5, 3.0, 0.05},
-        {"MoreKingSafety", 10.0, 3.0, 5.0, 0.05},
+        {"Balanced", 10.0, 3.0, 3.0, 0.05},
+        {"MaterialObsessed", 50.0, 1.0, 1.0, 0.01},    // Cares almost only about pieces
+        {"PositionalMaster", 8.0, 12.0, 2.0, 0.1},     // Loves mobility and activity
+        {"Defensive", 10.0, 2.0, 10.0, 0.05},          // Paranoid about king safety
+        {"Aggressive", 8.0, 8.0, 0.5, 0.05},           // Ignores king, seeks activity
     };
     
     cout << "Testing configurations:\n";
