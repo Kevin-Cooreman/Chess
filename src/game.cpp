@@ -277,10 +277,19 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
 
 // Make a move for the engine (saves undo info, doesn't update game status)
 void ChessGame::makeMoveForEngine(const Move& move) {
+    // Determine captured piece (special case for en passant)
+    int capturedPiece;
+    if (move.moveType == EN_PASSANT) {
+        // For en passant, captured pawn is on the same row as moving pawn
+        capturedPiece = board[move.startRow][move.targetColumn];
+    } else {
+        capturedPiece = board[move.targetRow][move.targetColumn];
+    }
+    
     // Save current state for undo
     UndoInfo info {
         move,                              // move
-        board[move.targetRow][move.targetColumn],  // capturedPiece
+        capturedPiece,                     // capturedPiece
         whiteKingMoved,                    // whiteKingMovedBefore
         blackKingMoved,                    // blackKingMovedBefore
         whiteKingsideRookMoved,            // whiteKingsideRookMovedBefore
@@ -830,4 +839,9 @@ void ChessGame::undoMove() {
         gameHistory.back().targetColumn == move.targetColumn) {
         gameHistory.pop_back();
     }
+}
+
+// Clear the undo stack (used after engine search completes)
+void ChessGame::clearUndoStack() {
+    undoStack.clear();
 }

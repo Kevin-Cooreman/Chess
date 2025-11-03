@@ -56,6 +56,7 @@ public:
     bool makePlayerMove(const string& moveStr, char promotionPiece);
     void makeMoveForEngine(const Move& move);  // For engine search - saves undo info
     void undoMove();
+    void clearUndoStack();  // Clear undo stack after engine search
     bool makeEngineMove(const Move& move);  // For engine to actually play a move in the game
     vector<Move> getLegalMoves() const;
     

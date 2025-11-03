@@ -45,6 +45,9 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         }
     }
     
+    // Clear undo stack after search is complete
+    game.clearUndoStack();
+    
     return bestMove;
 }
 

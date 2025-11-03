@@ -14,7 +14,7 @@ double Evaluation::evaluate(const ChessGame& game) const {
     evaluation += materialCount(game);
     evaluation += position(game);
     // Can add more components later:
-    // evaluation += kingsafety(game);
+    evaluation += kingsafety(game);
     // evaluation += pawnStructure(game);
 
     return evaluation;
@@ -111,11 +111,54 @@ double Evaluation::position(const ChessGame& game) const {
     return positionValue;
 }
 
-// Placeholder for king safety evaluation
+// king safety evaluation
 double Evaluation::kingsafety(const ChessGame& game) const {
     // TODO: Implement king safety evaluation
-    (void)game; // Suppress unused parameter warning
-    return 0.0;
+    double kingSafetyValue = 0.0;
+    string fen = game.getCurrentFEN();
+
+    size_t spacePos = fen.find(' ');
+    string piecePlacement = fen.substr(0, spacePos);
+
+    int row = 0, col = 0;
+
+    for(char c : piecePlacement) {
+        if(c == '/') {
+            row++;      // Move to next rank
+            col = 0;    // Reset to file 'a'
+            continue;
+        }
+        else if(isdigit(c)) {
+            col += (c - '0');  // Skip empty squares
+            continue;
+        }
+        
+        // Now we have a piece at position [row][col]
+        double pieceValue = 0;
+        char piece = tolower(c);
+
+        if(piece == 'k'){
+            int ifKingWasQueen = generateQueenMoves(row, col).size();
+            pieceValue = ifKingWasQueen * 0.5; // Penalty for exposed king
+        }
+
+        else{
+            col++;
+            continue;
+        }
+        
+        // More mobility = more exposed = bad for that side
+        // Subtract for white king exposure, add for black king exposure
+        if(isupper(c)) {
+            kingSafetyValue -= pieceValue;  // White king exposed is bad
+        } else {
+            kingSafetyValue += pieceValue;  // Black king exposed is good for white
+        }
+        
+        col++;  // Move to next column
+    }
+
+    return kingSafetyValue;
 }
 
 // Placeholder for pawn structure evaluation
