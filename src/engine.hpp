@@ -18,6 +18,7 @@ private:
 
 public:
     Engine() = default;
+    Engine(const Evaluation& eval) : evaluator(eval) {}
     ~Engine() = default;
 
     // Main public interface

@@ -12,7 +12,7 @@ using namespace std;
 class ChessGame;
 
 class Evaluation {
-private:
+protected:
     // Piece values
     static constexpr double PAWN_VALUE = 1.0;
     static constexpr double KNIGHT_VALUE = 3.0;
