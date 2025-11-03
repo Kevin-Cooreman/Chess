@@ -14,7 +14,8 @@ ChessGUI::ChessGUI(ChessGame& chessGame)
     : game(chessGame), selectedRow(-1), selectedCol(-1), pieceSelected(false),
       showPromotionDialog(false), promotionRow(-1), promotionCol(-1),
       promotionTargetRow(-1), promotionTargetCol(-1), isWhitePromotion(true),
-      fontLoaded(false), texturesLoaded(false) {
+      fontLoaded(false), texturesLoaded(false),
+      enginePlaysWhite(false), enginePlaysBlack(false), engineDepth(3), engineThinking(false) {
     
     initializeWindow();
     initializeColors();
@@ -96,6 +97,12 @@ bool ChessGUI::loadPieceTextures() {
 void ChessGUI::run() {
     while (window->isOpen()) {
         handleEvents();
+        
+        // Check if it's the engine's turn and make a move
+        if (!game.isGameOver() && !showPromotionDialog && isEngineTurn() && !engineThinking) {
+            makeEngineMove();
+        }
+        
         render();
     }
 }
@@ -702,4 +709,30 @@ void ChessGUI::drawPromotionDialog() {
             drawGeometricPiece(piece, x, y);
         }
     }
+}
+
+// Engine methods
+void ChessGUI::setEngineMode(bool playsWhite, bool playsBlack, int depth) {
+    enginePlaysWhite = playsWhite;
+    enginePlaysBlack = playsBlack;
+    engineDepth = depth;
+}
+
+bool ChessGUI::isEngineTurn() const {
+    return (game.isWhiteToMove() && enginePlaysWhite) || 
+           (!game.isWhiteToMove() && enginePlaysBlack);
+}
+
+void ChessGUI::makeEngineMove() {
+    engineThinking = true;
+    
+    Move bestMove = engine.getBestMove(game, engineDepth);
+    
+    if (bestMove.startRow != -1) {
+        game.makeEngineMove(bestMove);
+        clearSelection();
+        updateLegalMoves();
+    }
+    
+    engineThinking = false;
 }

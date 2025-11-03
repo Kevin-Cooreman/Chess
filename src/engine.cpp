@@ -12,9 +12,40 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         return Move(-1, -1, -1, -1); // No legal moves
     }
     
-    // TODO: Search through moves and pick best one
-    // For now, just return first legal move
-    return legalMoves[0];
+    bool isWhiteTurn = game.isWhiteToMove();
+    Move bestMove = legalMoves[0];
+    
+    if (isWhiteTurn) {
+        // White wants to maximize evaluation
+        double bestEval = -numeric_limits<double>::infinity();
+        
+        for (const Move& move : legalMoves) {
+            game.makeMoveForEngine(move);
+            double eval = minimax(game, depth - 1, false);
+            game.undoMove();
+            
+            if (eval > bestEval) {
+                bestEval = eval;
+                bestMove = move;
+            }
+        }
+    } else {
+        // Black wants to minimize evaluation
+        double bestEval = numeric_limits<double>::infinity();
+        
+        for (const Move& move : legalMoves) {
+            game.makeMoveForEngine(move);
+            double eval = minimax(game, depth - 1, true);
+            game.undoMove();
+            
+            if (eval < bestEval) {
+                bestEval = eval;
+                bestMove = move;
+            }
+        }
+    }
+    
+    return bestMove;
 }
 
 // Minimax algorithm

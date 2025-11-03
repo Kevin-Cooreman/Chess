@@ -2,6 +2,7 @@
 #include <string>
 #include "board.hpp"
 #include "game.hpp"
+#include "engine.hpp"
 
 using namespace std;
 
@@ -22,11 +23,55 @@ int main() {
     ChessGame game;
     string input;
     
+    cout << "\n=== CHESS ENGINE ===\n";
+    cout << "Select game mode:\n";
+    cout << "  1 - Player vs Player\n";
+    cout << "  2 - Player (White) vs Engine (Black)\n";
+    cout << "  3 - Engine (White) vs Player (Black)\n";
+    cout << "Enter choice: ";
+    
+    int mode = 1;
+    getline(cin, input);
+    if (!input.empty()) {
+        mode = stoi(input);
+    }
+    
+    bool enginePlaysWhite = (mode == 3);
+    bool enginePlaysBlack = (mode == 2 || mode == 3);
+    int engineDepth = 3; // Search depth for the engine
+    
+    Engine engine;
+    
     printInstructions();
     
     while (!game.isGameOver()) {
         game.displayBoard();
         
+        // Check if it's the engine's turn
+        bool isEngineTurn = (game.isWhiteToMove() && enginePlaysWhite) || 
+                           (!game.isWhiteToMove() && enginePlaysBlack);
+        
+        if (isEngineTurn) {
+            cout << "\nEngine is thinking";
+            cout.flush();
+            for (int i = 0; i < 3; i++) {
+                cout << ".";
+                cout.flush();
+            }
+            cout << endl;
+            
+            Move bestMove = engine.getBestMove(game, engineDepth);
+            
+            if (bestMove.startRow == -1) {
+                cout << "Engine has no legal moves!\n";
+                break;
+            }
+            
+            game.makeEngineMove(bestMove);
+            continue;
+        }
+        
+        // Human player's turn
         cout << "Enter move (or 'help' for commands): ";
         
         // Check if input stream is still valid

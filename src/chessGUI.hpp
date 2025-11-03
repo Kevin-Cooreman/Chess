@@ -1,6 +1,7 @@
 #pragma once
 #include <SFML/Graphics.hpp>
 #include "game.hpp"
+#include "engine.hpp"
 #include <memory>
 #include <map>
 
@@ -8,6 +9,7 @@ class ChessGUI {
 private:
     std::unique_ptr<sf::RenderWindow> window;
     ChessGame& game;
+    Engine engine;
     
     // Display constants
     static constexpr int WINDOW_WIDTH = 800;
@@ -28,6 +30,12 @@ private:
     int selectedCol;
     bool pieceSelected;
     std::vector<Move> legalMoves;
+    
+    // Engine state
+    bool enginePlaysWhite;
+    bool enginePlaysBlack;
+    int engineDepth;
+    bool engineThinking;
     
     // Promotion dialog state
     bool showPromotionDialog;
@@ -52,6 +60,9 @@ public:
     // Main methods
     void run();
     bool isOpen() const;
+    
+    // Engine control
+    void setEngineMode(bool playsWhite, bool playsBlack, int depth = 3);
     
 private:
     // Initialization
@@ -86,6 +97,10 @@ private:
     void tryMove(int row, int col);
     void clearSelection();
     void updateLegalMoves();
+    
+    // Engine interaction
+    void makeEngineMove();
+    bool isEngineTurn() const;
     
     // Promotion handling
     void displayPromotionDialog(int fromRow, int fromCol, int toRow, int toCol, bool isWhite);

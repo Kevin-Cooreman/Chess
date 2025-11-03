@@ -308,6 +308,70 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     }
 }
 
+// Make an engine move in the actual game (updates game state properly)
+bool ChessGame::makeEngineMove(const Move& move) {
+    if (gameOver) {
+        cout << "Game is over! " << gameResult << endl;
+        return false;
+    }
+    
+    // Verify the move is legal
+    vector<Move> legalMoves = getLegalMoves();
+    bool isLegal = false;
+    for (const Move& legalMove : legalMoves) {
+        if (legalMove.startRow == move.startRow &&
+            legalMove.startColumn == move.startColumn &&
+            legalMove.targetRow == move.targetRow &&
+            legalMove.targetColumn == move.targetColumn &&
+            legalMove.moveType == move.moveType) {
+            isLegal = true;
+            break;
+        }
+    }
+    
+    if (!isLegal) {
+        cout << "Engine attempted illegal move!" << endl;
+        return false;
+    }
+    
+    // Check if this move resets the halfmove clock (capture or pawn move)
+    int movingPiece = board[move.startRow][move.startColumn];
+    int capturedPiece = board[move.targetRow][move.targetColumn];
+    bool isPawnMove = (movingPiece & 0b0111) == 0b0001;
+    bool isCapture = !isEmpty(capturedPiece) || move.moveType == EN_PASSANT;
+    
+    if (isPawnMove || isCapture) {
+        halfmoveClock = 0;
+        // Clear position history on irreversible moves (captures/pawn moves)
+        positionHistory.clear();
+    } else {
+        halfmoveClock++;
+    }
+    
+    // Execute the move
+    makeMove(move);
+    gameHistory.push_back(move);
+    
+    // Switch turns
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Increment fullmove number after black's move
+    if (isWhiteTurn) {
+        fullmoveNumber++;
+    }
+    
+    // Update FEN string and record position
+    updateFEN();
+    recordPosition();
+    
+    // Update game status
+    updateGameStatus();
+    
+    cout << "Engine plays: " << moveToString(move) << endl;
+    
+    return true;
+}
+
 Move ChessGame::parseMove(const string& moveStr) const {
     string cleaned = moveStr;
     
