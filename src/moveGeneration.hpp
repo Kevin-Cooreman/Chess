@@ -43,6 +43,19 @@ vector<Move> generateKingMoves(int sRow, int sCol);
 vector<Move> generateKnightMoves(int sRow, int sCol);
 vector<Move> generatePawnMoves(int sRow, int sCol);
 
+//helper functions for move generation
+vector<Move> generateUpMoves(int sRow, int sCol);
+vector<Move> generateDownMoves(int sRow, int sCol);
+vector<Move> generateleftMoves(int sRow, int sCol);
+vector<Move> generateRightMoves(int sRow, int sCol);
+
+vector<Move> generateUpLeftMoves(int sRow, int sCol);
+vector<Move> generateDownLeftMoves(int sRow, int sCol);
+vector<Move> generateUpRightMoves(int sRow, int sCol);
+vector<Move> generateDownRightMoves(int sRow, int sCol);
+
+
+
 // Helper functions for legal move validation
 bool isSquareAttacked(int row, int col, bool byWhite);
 bool isKingInCheck(bool whiteKing);

@@ -3,7 +3,7 @@
 
 using namespace std;
 
-vector<Move> generateRookMoves(int sRow, int sCol){
+vector<Move> generateUpMoves(int sRow, int sCol){
     vector<Move> moves;
 
     //up
@@ -22,7 +22,13 @@ vector<Move> generateRookMoves(int sRow, int sCol){
             moves.push_back(Move(sRow, sCol, targetRow, sCol));
         }
     }
-    //down
+
+    return moves;
+}
+
+vector<Move> generateDownMoves(int sRow, int sCol){
+    vector<Move> moves;
+
     for(int targetRow = sRow +1; targetRow < 8; targetRow++){
 
         if(sameColour(board[sRow][sCol], board[targetRow][sCol])){
@@ -38,8 +44,11 @@ vector<Move> generateRookMoves(int sRow, int sCol){
             moves.push_back(Move(sRow, sCol, targetRow, sCol));
         }
     }
+    return moves;
+}
 
-    //left
+vector<Move> generateleftMoves(int sRow, int sCol){
+    vector<Move> moves;
     for(int targetCol = sCol -1; targetCol >= 0; targetCol--){
 
         if(sameColour(board[sRow][sCol], board[sRow][targetCol])){
@@ -55,8 +64,10 @@ vector<Move> generateRookMoves(int sRow, int sCol){
             moves.push_back(Move(sRow, sCol, sRow, targetCol));
         }
     }
-
-    //right
+    return moves;
+}
+vector<Move> generateRightMoves(int sRow, int sCol){
+    vector<Move> moves;
     for(int targetCol = sCol +1; targetCol < 8; targetCol++){
 
         if(sameColour(board[sRow][sCol], board[sRow][targetCol])){
@@ -75,7 +86,7 @@ vector<Move> generateRookMoves(int sRow, int sCol){
     return moves;
 }
 
-vector<Move> generateBishopMoves(int sRow, int sCol){
+vector<Move> generateUpLeftMoves(int sRow, int sCol){
     vector<Move> moves;
 
     for(int i = 1; i < 8; i++){
@@ -95,42 +106,11 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
             moves.push_back(Move(sRow, sCol, targetRow, targetCol));
         }
     }
+    return moves;
+}
 
-    for(int i = 1; i < 8; i++){
-        int targetRow = sRow - i;  // up
-        int targetCol = sCol + i;  // right
-        
-        if(targetRow < 0 || targetCol > 7) break; // Off board
-        
-        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
-            break;
-        }
-        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
-            break;
-        }
-        else{
-            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
-        }
-    }
-
-    for(int i = 1; i < 8; i++){
-        int targetRow = sRow + i;  // down
-        int targetCol = sCol + i;  // right
-        
-        if(targetRow > 7 || targetCol > 7) break; // Off board
-        
-        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
-            break;
-        }
-        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
-            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
-            break;
-        }
-        else{
-            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
-        }
-    }
+vector<Move> generateDownLeftMoves(int sRow, int sCol){
+    vector<Move> moves;
 
     for(int i = 1; i < 8; i++){
         int targetRow = sRow + i;  // down
@@ -150,6 +130,89 @@ vector<Move> generateBishopMoves(int sRow, int sCol){
         }
     }
 
+    return moves;
+}
+vector<Move> generateUpRightMoves(int sRow, int sCol){
+    vector<Move> moves;
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow - i;  // up
+        int targetCol = sCol + i;  // right
+        
+        if(targetRow < 0 || targetCol > 7) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
+            break;
+        }
+        else{
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
+        }
+    }
+
+    return moves;
+}
+
+vector<Move> generateDownRightMoves(int sRow, int sCol){
+    vector<Move> moves;
+
+    for(int i = 1; i < 8; i++){
+        int targetRow = sRow + i;  // down
+        int targetCol = sCol + i;  // right
+        
+        if(targetRow > 7 || targetCol > 7) break; // Off board
+        
+        if(sameColour(board[sRow][sCol], board[targetRow][targetCol])){
+            break;
+        }
+        else if(!sameColour(board[sRow][sCol], board[targetRow][targetCol]) && !isEmpty(board[targetRow][targetCol])){
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
+            break;
+        }
+        else{
+            moves.push_back(Move(sRow, sCol, targetRow, targetCol));
+        }
+    }
+
+    return moves;
+}
+
+vector<Move> generateRookMoves(int sRow, int sCol){
+    vector<Move> moves;
+    
+    // Use helper functions for each direction
+    vector<Move> upMoves = generateUpMoves(sRow, sCol);
+    vector<Move> downMoves = generateDownMoves(sRow, sCol);
+    vector<Move> leftMoves = generateleftMoves(sRow, sCol);
+    vector<Move> rightMoves = generateRightMoves(sRow, sCol);
+    
+    // Combine all moves
+    moves.insert(moves.end(), upMoves.begin(), upMoves.end());
+    moves.insert(moves.end(), downMoves.begin(), downMoves.end());
+    moves.insert(moves.end(), leftMoves.begin(), leftMoves.end());
+    moves.insert(moves.end(), rightMoves.begin(), rightMoves.end());
+    
+    return moves;
+}
+
+vector<Move> generateBishopMoves(int sRow, int sCol){
+    vector<Move> moves;
+    
+    // Use helper functions for each diagonal direction
+    vector<Move> upLeftMoves = generateUpLeftMoves(sRow, sCol);
+    vector<Move> upRightMoves = generateUpRightMoves(sRow, sCol);
+    vector<Move> downLeftMoves = generateDownLeftMoves(sRow, sCol);
+    vector<Move> downRightMoves = generateDownRightMoves(sRow, sCol);
+    
+    // Combine all moves
+    moves.insert(moves.end(), upLeftMoves.begin(), upLeftMoves.end());
+    moves.insert(moves.end(), upRightMoves.begin(), upRightMoves.end());
+    moves.insert(moves.end(), downLeftMoves.begin(), downLeftMoves.end());
+    moves.insert(moves.end(), downRightMoves.begin(), downRightMoves.end());
+    
     return moves;
 }
 
