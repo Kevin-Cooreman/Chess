@@ -11,10 +11,10 @@ using namespace std;
 double Evaluation::evaluate(const ChessGame& game) const {
     double evaluation = 0.0;
 
-    evaluation += materialCount(game);
-    evaluation += position(game);
-    evaluation += kingsafety(game);
-    evaluation += pawnStructure(game);
+    evaluation += 10*materialCount(game);
+    evaluation += 3*position(game);
+    evaluation += 3*kingsafety(game);
+    evaluation += 0.05*pawnStructure(game);
 
     return evaluation;
 }
@@ -86,12 +86,10 @@ double Evaluation::position(const ChessGame& game) const {
         
         // evaluate position by nr of moves available
         switch(piece) {
-            case 'p': pieceValue = generatePawnMoves(row, col).size() * 0.1; break;
-            case 'n': pieceValue = generateKnightMoves(row, col).size() * 0.1; break;
-            case 'b': pieceValue = generateBishopMoves(row, col).size() * 0.05; break;
-            case 'r': pieceValue = generateRookMoves(row, col).size() * 0.05; break;
-            case 'q': pieceValue = generateQueenMoves(row, col).size() * 0.05; break;
-            case 'k': pieceValue = generateKingMoves(row, col).size() * 0.05; break;
+            case 'n': pieceValue = generateKnightMoves(row, col).size() * 0.2; break;
+            case 'b': pieceValue = generateBishopMoves(row, col).size() * 0.2; break;
+            case 'r': pieceValue = generateRookMoves(row, col).size() * 0.2; break;
+            case 'q': pieceValue = generateQueenMoves(row, col).size() * 0.3; break;
             default: 
                 col++;
                 continue;
@@ -213,7 +211,7 @@ double Evaluation::pawnStructure(const ChessGame& game) const {
             // Reward passed pawns (bonus increases closer to promotion)
             if(!hasEnemyAhead) {
                 int distanceToPromotion = isWhitePawn ? row : (7 - row);
-                pieceValue += (8 - distanceToPromotion) * 0.1; // 0.1 to 0.8 bonus
+                pieceValue += (8 - distanceToPromotion) * 0.05; // 0.05 to 0.4 bonus
             }
             
             // Check for doubled pawns (penalty)

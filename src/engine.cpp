@@ -59,6 +59,17 @@ double Engine::minimax(ChessGame& game, int depth, bool isMaximizing) {
 
     vector<Move> legalmoves = game.getLegalMoves();
     
+    // If no legal moves, it's checkmate or stalemate
+    if(legalmoves.empty()) {
+        if(game.isInCheck()) {
+            // Checkmate: return extreme values
+            return isMaximizing ? -100000.0 : 100000.0;
+        } else {
+            // Stalemate: return 0 (draw)
+            return 0.0;
+        }
+    }
+    
     if(isMaximizing){
         //white to move - maximise eval
         //initialise max Eval to -infinity (lowest possible eval)
