@@ -275,6 +275,39 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
     return true;
 }
 
+// Make a move for the engine (saves undo info, doesn't update game status)
+void ChessGame::makeMoveForEngine(const Move& move) {
+    // Save current state for undo
+    UndoInfo info {
+        move,                              // move
+        board[move.targetRow][move.targetColumn],  // capturedPiece
+        whiteKingMoved,                    // whiteKingMovedBefore
+        blackKingMoved,                    // blackKingMovedBefore
+        whiteKingsideRookMoved,            // whiteKingsideRookMovedBefore
+        whiteQueensideRookMoved,           // whiteQueensideRookMovedBefore
+        blackKingsideRookMoved,            // blackKingsideRookMovedBefore
+        blackQueensideRookMoved,           // blackQueensideRookMovedBefore
+        enPassantTargetRow,                // enPassantTargetRowBefore
+        enPassantTargetCol,                // enPassantTargetColBefore
+        halfmoveClock,                     // halfmoveClockBefore
+        fullmoveNumber,                    // fullmoveNumberBefore
+        currentFEN                         // fenBefore
+    };
+    
+    undoStack.push_back(info);
+    
+    // Execute the move
+    makeMove(move);
+    
+    // Switch turns
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Increment fullmove number after black's move
+    if (isWhiteTurn) {
+        fullmoveNumber++;
+    }
+}
+
 Move ChessGame::parseMove(const string& moveStr) const {
     string cleaned = moveStr;
     
@@ -649,4 +682,88 @@ bool ChessGame::isDrawByInsufficientMaterial() const {
     }
     
     return false;
+}
+
+// Undo the last move - used by the engine for minimax search
+void ChessGame::undoMove() {
+    if (undoStack.empty()) {
+        return;
+    }
+    
+    // Pop the last undo info
+    UndoInfo info = undoStack.back();
+    undoStack.pop_back();
+    
+    // Restore game state flags
+    whiteKingMoved = info.whiteKingMovedBefore;
+    blackKingMoved = info.blackKingMovedBefore;
+    whiteKingsideRookMoved = info.whiteKingsideRookMovedBefore;
+    whiteQueensideRookMoved = info.whiteQueensideRookMovedBefore;
+    blackKingsideRookMoved = info.blackKingsideRookMovedBefore;
+    blackQueensideRookMoved = info.blackQueensideRookMovedBefore;
+    enPassantTargetRow = info.enPassantTargetRowBefore;
+    enPassantTargetCol = info.enPassantTargetColBefore;
+    halfmoveClock = info.halfmoveClockBefore;
+    fullmoveNumber = info.fullmoveNumberBefore;
+    currentFEN = info.fenBefore;
+    
+    // Undo the move on the board
+    Move& move = info.move;
+    int movingPiece = board[move.targetRow][move.targetColumn];
+    
+    // Handle special move types
+    switch(move.moveType) {
+        case CASTLING_KINGSIDE:
+            // Move king back
+            board[move.startRow][move.startColumn] = movingPiece;
+            board[move.targetRow][move.targetColumn] = EMPTY;
+            // Move rook back
+            board[move.targetRow][7] = board[move.targetRow][5];
+            board[move.targetRow][5] = EMPTY;
+            break;
+            
+        case CASTLING_QUEENSIDE:
+            // Move king back
+            board[move.startRow][move.startColumn] = movingPiece;
+            board[move.targetRow][move.targetColumn] = EMPTY;
+            // Move rook back
+            board[move.targetRow][0] = board[move.targetRow][3];
+            board[move.targetRow][3] = EMPTY;
+            break;
+            
+        case EN_PASSANT:
+            // Move pawn back
+            board[move.startRow][move.startColumn] = movingPiece;
+            board[move.targetRow][move.targetColumn] = EMPTY;
+            // Restore captured pawn (it was on the same rank as the moving pawn)
+            board[move.startRow][move.targetColumn] = info.capturedPiece;
+            break;
+            
+        case PAWN_PROMOTION:
+            // Convert promoted piece back to pawn
+            if (isWhite(movingPiece)) {
+                board[move.startRow][move.startColumn] = WHITE_PAWN;
+            } else {
+                board[move.startRow][move.startColumn] = BLACK_PAWN;
+            }
+            board[move.targetRow][move.targetColumn] = info.capturedPiece;
+            break;
+            
+        default: // NORMAL move
+            board[move.startRow][move.startColumn] = movingPiece;
+            board[move.targetRow][move.targetColumn] = info.capturedPiece;
+            break;
+    }
+    
+    // Switch turn back
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Remove from game history if it was added
+    if (!gameHistory.empty() && 
+        gameHistory.back().startRow == move.startRow &&
+        gameHistory.back().startColumn == move.startColumn &&
+        gameHistory.back().targetRow == move.targetRow &&
+        gameHistory.back().targetColumn == move.targetColumn) {
+        gameHistory.pop_back();
+    }
 }

@@ -7,6 +7,23 @@
 
 using namespace std;
 
+// Structure to store information needed to undo a move
+struct UndoInfo {
+    Move move;
+    int capturedPiece;
+    bool whiteKingMovedBefore;
+    bool blackKingMovedBefore;
+    bool whiteKingsideRookMovedBefore;
+    bool whiteQueensideRookMovedBefore;
+    bool blackKingsideRookMovedBefore;
+    bool blackQueensideRookMovedBefore;
+    int enPassantTargetRowBefore;
+    int enPassantTargetColBefore;
+    int halfmoveClockBefore;
+    int fullmoveNumberBefore;
+    string fenBefore;
+};
+
 class ChessGame {
 private:
     bool isWhiteTurn;
@@ -21,6 +38,9 @@ private:
     
     // Position history for threefold repetition (position -> count)
     map<string, int> positionHistory;
+    
+    // Undo stack
+    vector<UndoInfo> undoStack;
 
 public:
     ChessGame();
@@ -34,6 +54,8 @@ public:
     // Move handling
     bool makePlayerMove(const string& moveStr);
     bool makePlayerMove(const string& moveStr, char promotionPiece);
+    void makeMoveForEngine(const Move& move);  // For engine search - saves undo info
+    void undoMove();
     vector<Move> getLegalMoves() const;
     
     // Input/Output
