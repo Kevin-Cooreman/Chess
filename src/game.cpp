@@ -376,6 +376,8 @@ bool ChessGame::makeEngineMove(const Move& move) {
     // Update game status
     updateGameStatus();
     
+    cout << "Engine plays: " << moveToString(move) << endl;
+    
     return true;
 }
 

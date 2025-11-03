@@ -4,6 +4,7 @@
 #include <iostream>
 #include <vector>
 #include <string>
+#include <random>
 
 using namespace std;
 
@@ -51,6 +52,22 @@ string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite
     
     Engine engine1(eval1);
     Engine engine2(eval2);
+    
+    // Play 1-3 random opening moves to create variety
+    static random_device rd;
+    static mt19937 gen(rd());
+    uniform_int_distribution<> openingMovesDist(1, 3);
+    int randomOpeningMoves = openingMovesDist(gen);
+    
+    for (int i = 0; i < randomOpeningMoves && !game.isGameOver(); i++) {
+        vector<Move> legalMoves = game.getLegalMoves();
+        if (legalMoves.empty()) break;
+        
+        // Pick a random legal move
+        uniform_int_distribution<> moveDist(0, legalMoves.size() - 1);
+        Move randomMove = legalMoves[moveDist(gen)];
+        game.makeEngineMove(randomMove);
+    }
     
     int moveCount = 0;
     
