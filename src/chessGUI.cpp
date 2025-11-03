@@ -1,7 +1,10 @@
 #include "chessGUI.hpp"
+#include "evaluation.hpp"
 #include <iostream>
 #include <cmath>
 #include <algorithm>
+#include <sstream>
+#include <iomanip>
 
 #ifndef M_PI
 #define M_PI 3.14159265358979323846
@@ -309,6 +312,40 @@ void ChessGUI::drawUI() {
     gameInfo.setString(infoText);
     gameInfo.setPosition(20, 20);
     window->draw(gameInfo);
+    
+    // Display evaluation
+    if (!game.isGameOver()) {
+        double eval = evaluation(game);
+        
+        sf::Text evalText;
+        if (fontLoaded) {
+            evalText.setFont(font);
+            evalText.setCharacterSize(20);
+        } else {
+            evalText.setCharacterSize(18);
+        }
+        
+        // Format evaluation score
+        std::stringstream ss;
+        ss << std::fixed << std::setprecision(2);
+        
+        if (eval > 0) {
+            ss << "White +";
+            evalText.setFillColor(sf::Color::White);
+        } else if (eval < 0) {
+            ss << "Black +";
+            evalText.setFillColor(sf::Color(180, 180, 180));
+            eval = -eval; // Make positive for display
+        } else {
+            ss << "Equal ";
+            evalText.setFillColor(sf::Color(150, 150, 150));
+        }
+        
+        ss << eval;
+        evalText.setString("Eval: " + ss.str());
+        evalText.setPosition(20, 50);
+        window->draw(evalText);
+    }
 }
 
 void ChessGUI::screenToBoard(int screenX, int screenY, int& row, int& col) {

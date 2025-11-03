@@ -36,6 +36,7 @@ set(CORE_SOURCES
     src/board.cpp
     src/moveGeneration.cpp
     src/game.cpp
+    src/evaluation.cpp
 )
 
 # Headers (for IDE convenience)
@@ -44,6 +45,7 @@ set(HEADERS
     src/moveGeneration.hpp
     src/game.hpp
     src/chessGUI.hpp
+    src/evaluation.hpp
 )
 
 # Console version
