@@ -325,10 +325,32 @@ int main() {
     cout << "  TOTAL GAMES: " << totalGames << "\n";
     cout << "  Depth: " << depth << "\n";
     
-    // Estimate time (rough: 5s per game at depth 2, 20s at depth 3, 60s at depth 4)
-    int secondsPerGame = (depth == 2) ? 5 : (depth == 3) ? 20 : 60;
-    int estimatedMinutes = (totalGames * secondsPerGame) / 60;
-    cout << "  Estimated time: ~" << estimatedMinutes << " minutes\n";
+    // Estimate time with optimizations (transposition table + piece-square tables)
+    // New timings: ~0.02s at depth 2, ~0.03s at depth 3, ~0.05s at depth 4, ~0.1s at depth 5
+    double secondsPerGame;
+    if (depth == 2) {
+        secondsPerGame = 0.02;
+    } else if (depth == 3) {
+        secondsPerGame = 0.03;
+    } else if (depth == 4) {
+        secondsPerGame = 0.05;
+    } else if (depth == 5) {
+        secondsPerGame = 0.10;
+    } else {
+        secondsPerGame = 0.20 * (depth - 5) + 0.10;  // Rough estimate for deeper
+    }
+    
+    int estimatedSeconds = (int)(totalGames * secondsPerGame);
+    int estimatedMinutes = estimatedSeconds / 60;
+    int remainingSeconds = estimatedSeconds % 60;
+    
+    cout << "  Estimated time: ~";
+    if (estimatedMinutes > 0) {
+        cout << estimatedMinutes << " min " << remainingSeconds << " sec";
+    } else {
+        cout << estimatedSeconds << " seconds";
+    }
+    cout << "\n";
     cout << "===========================================\n";
     
     cout << "\nPress Enter to start, or Ctrl+C to cancel...";
