@@ -5,6 +5,8 @@
 #include <vector>
 #include <string>
 #include <random>
+#include <map>
+#include <algorithm>
 
 using namespace std;
 
@@ -41,9 +43,30 @@ public:
     }
 };
 
+// Different starting positions for testing
+struct StartingPosition {
+    string name;
+    string fen;
+};
+
+vector<StartingPosition> getTestPositions() {
+    return {
+        {"Standard Opening", "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1"},
+        {"Open Middlegame", "r1bqk2r/pp2bppp/2n1pn2/3p4/2PP4/2N1PN2/PP2BPPP/R1BQK2R w KQkq - 0 8"},
+        {"Tactical Position", "r2qkb1r/ppp2ppp/2n5/3pPb2/3Pn3/2N2N2/PPP2PPP/R1BQKB1R w KQkq - 0 8"},
+        {"Closed Position", "rnbqkb1r/pp2pppp/3p1n2/8/3NP3/2N5/PPP2PPP/R1BQKB1R w KQkq - 0 6"},
+        {"Early Endgame", "4k3/8/3K4/8/8/8/4P3/8 w - - 0 1"}
+    };
+}
+
 // Play one game between two configurations
-string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite, int depth, int maxMoves = 200) {
+string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite, int depth, const string& startingFen, int maxMoves = 200) {
     ChessGame game;
+    
+    // Load starting position if provided
+    if (!startingFen.empty()) {
+        game.loadFEN(startingFen);
+    }
     
     TunableEvaluation eval1(config1.materialWeight, config1.positionWeight, 
                             config1.kingSafetyWeight, config1.pawnStructureWeight);
@@ -53,20 +76,23 @@ string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite
     Engine engine1(eval1);
     Engine engine2(eval2);
     
-    // Play 2-5 random opening moves to create more variety
-    static random_device rd;
-    static mt19937 gen(rd());
-    uniform_int_distribution<> openingMovesDist(2, 5);
-    int randomOpeningMoves = openingMovesDist(gen);
-    
-    for (int i = 0; i < randomOpeningMoves && !game.isGameOver(); i++) {
-        vector<Move> legalMoves = game.getLegalMoves();
-        if (legalMoves.empty()) break;
+    // Only play random opening moves if starting from standard position
+    if (startingFen.empty() || startingFen == "rnbqkbnr/pppppppp/8/8/8/8/PPPPPPPP/RNBQKBNR w KQkq - 0 1") {
+        // Play 2-5 random opening moves to create more variety
+        static random_device rd;
+        static mt19937 gen(rd());
+        uniform_int_distribution<> openingMovesDist(2, 5);
+        int randomOpeningMoves = openingMovesDist(gen);
         
-        // Pick a random legal move
-        uniform_int_distribution<> moveDist(0, legalMoves.size() - 1);
-        Move randomMove = legalMoves[moveDist(gen)];
-        game.makeEngineMove(randomMove);
+        for (int i = 0; i < randomOpeningMoves && !game.isGameOver(); i++) {
+            vector<Move> legalMoves = game.getLegalMoves();
+            if (legalMoves.empty()) break;
+            
+            // Pick a random legal move
+            uniform_int_distribution<> moveDist(0, legalMoves.size() - 1);
+            Move randomMove = legalMoves[moveDist(gen)];
+            game.makeEngineMove(randomMove);
+        }
     }
     
     int moveCount = 0;
@@ -110,9 +136,25 @@ string playGame(EvalConfig& config1, EvalConfig& config2, bool config1PlaysWhite
     return "draw";
 }
 
+// Structure to track overall tournament results
+struct TournamentResults {
+    map<string, int> wins;
+    map<string, int> losses;
+    map<string, int> draws;
+    map<string, double> scores;
+    map<string, int> gamesPlayed;
+    
+    // Results per position type
+    map<string, map<string, int>> winsByPosition;      // config -> position -> wins
+    map<string, map<string, int>> lossesByPosition;    // config -> position -> losses
+    map<string, map<string, int>> drawsByPosition;     // config -> position -> draws
+};
+
 // Run a match between two configurations
-void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int depth) {
+void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int depth, 
+              const string& positionName, const string& startingFen, TournamentResults& results) {
     cout << "\n===========================================\n";
+    cout << "Position: " << positionName << "\n";
     cout << "Match: " << config1.name << " vs " << config2.name << "\n";
     cout << "Games per side: " << gamesPerSide << ", Depth: " << depth << "\n";
     cout << "===========================================\n";
@@ -127,7 +169,7 @@ void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int de
         cout << "Game " << (i + 1) << "/" << gamesPerSide << "... ";
         cout.flush();
         
-        string result = playGame(config1, config2, true, depth);
+        string result = playGame(config1, config2, true, depth, startingFen);
         
         if (result == "config1") {
             config1Wins++;
@@ -147,7 +189,7 @@ void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int de
         cout << "Game " << (i + 1) << "/" << gamesPerSide << "... ";
         cout.flush();
         
-        string result = playGame(config1, config2, false, depth);
+        string result = playGame(config1, config2, false, depth, startingFen);
         
         if (result == "config1") {
             config1Wins++;
@@ -163,7 +205,7 @@ void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int de
     
     // Display results
     cout << "\n===========================================\n";
-    cout << "Final Results:\n";
+    cout << "Final Results for " << positionName << ":\n";
     cout << config1.name << ": " << config1Wins << " wins\n";
     cout << config2.name << ": " << config2Wins << " wins\n";
     cout << "Draws: " << draws << "\n";
@@ -179,6 +221,26 @@ void runMatch(EvalConfig& config1, EvalConfig& config2, int gamesPerSide, int de
     cout << config2.name << ": " << config2Score << "/" << totalGames 
          << " (" << (config2Score / totalGames * 100) << "%)\n";
     cout << "===========================================\n\n";
+    
+    // Update tournament results
+    results.wins[config1.name] += config1Wins;
+    results.wins[config2.name] += config2Wins;
+    results.losses[config1.name] += config2Wins;
+    results.losses[config2.name] += config1Wins;
+    results.draws[config1.name] += draws;
+    results.draws[config2.name] += draws;
+    results.scores[config1.name] += config1Score;
+    results.scores[config2.name] += config2Score;
+    results.gamesPlayed[config1.name] += totalGames;
+    results.gamesPlayed[config2.name] += totalGames;
+    
+    // Update per-position results
+    results.winsByPosition[config1.name][positionName] += config1Wins;
+    results.winsByPosition[config2.name][positionName] += config2Wins;
+    results.lossesByPosition[config1.name][positionName] += config2Wins;
+    results.lossesByPosition[config2.name][positionName] += config1Wins;
+    results.drawsByPosition[config1.name][positionName] += draws;
+    results.drawsByPosition[config2.name][positionName] += draws;
 }
 
 int main() {
@@ -203,7 +265,7 @@ int main() {
              << ", PS=" << configs[i].pawnStructureWeight << "\n";
     }
     
-    cout << "\nEnter number of games per side (recommended 5-10): ";
+    cout << "\nEnter number of games per side per position (recommended 3-5): ";
     int gamesPerSide;
     cin >> gamesPerSide;
     
@@ -213,16 +275,119 @@ int main() {
     
     cout << "\nStarting tournament...\n";
     
-    // Run round-robin tournament
-    for (size_t i = 0; i < configs.size(); i++) {
-        for (size_t j = i + 1; j < configs.size(); j++) {
-            runMatch(configs[i], configs[j], gamesPerSide, depth);
+    // Get test positions
+    vector<StartingPosition> positions = getTestPositions();
+    
+    cout << "\nTesting " << positions.size() << " different positions:\n";
+    for (const auto& pos : positions) {
+        cout << "  - " << pos.name << "\n";
+    }
+    cout << "\n";
+    
+    // Initialize tournament results tracking
+    TournamentResults results;
+    for (const auto& config : configs) {
+        results.wins[config.name] = 0;
+        results.losses[config.name] = 0;
+        results.draws[config.name] = 0;
+        results.scores[config.name] = 0.0;
+        results.gamesPlayed[config.name] = 0;
+    }
+    
+    // Run round-robin tournament across all positions
+    for (const auto& position : positions) {
+        cout << "\n\n*** STARTING TESTS FOR POSITION: " << position.name << " ***\n";
+        
+        for (size_t i = 0; i < configs.size(); i++) {
+            for (size_t j = i + 1; j < configs.size(); j++) {
+                runMatch(configs[i], configs[j], gamesPerSide, depth, 
+                        position.name, position.fen, results);
+            }
         }
     }
     
-    cout << "Tournament complete!\n";
-    cout << "\nBased on the results, the configuration with the highest win rate\n";
-    cout << "is likely the best. You can then test variations of the winner.\n";
+    cout << "\n\n";
+    cout << "###############################################\n";
+    cout << "#                                             #\n";
+    cout << "#        FINAL TOURNAMENT SUMMARY             #\n";
+    cout << "#                                             #\n";
+    cout << "###############################################\n\n";
+    
+    // Create a vector of config names sorted by score
+    vector<pair<string, double>> rankings;
+    for (const auto& config : configs) {
+        double winRate = (results.scores[config.name] / results.gamesPlayed[config.name]) * 100.0;
+        rankings.push_back({config.name, winRate});
+    }
+    
+    // Sort by win rate (descending)
+    sort(rankings.begin(), rankings.end(), 
+         [](const pair<string, double>& a, const pair<string, double>& b) {
+             return a.second > b.second;
+         });
+    
+    cout << "RANKINGS (by win rate):\n";
+    cout << "===========================================\n";
+    for (size_t i = 0; i < rankings.size(); i++) {
+        string name = rankings[i].first;
+        cout << (i + 1) << ". " << name << "\n";
+        cout << "   Win Rate: " << rankings[i].second << "%\n";
+        cout << "   Record: " << results.wins[name] << "W - " 
+             << results.losses[name] << "L - " << results.draws[name] << "D\n";
+        cout << "   Score: " << results.scores[name] << "/" << results.gamesPlayed[name] << "\n";
+        cout << "   Games Played: " << results.gamesPlayed[name] << "\n";
+        
+        // Show breakdown by position type
+        cout << "\n   Performance by Position:\n";
+        for (const auto& pos : positions) {
+            int w = results.winsByPosition[name][pos.name];
+            int l = results.lossesByPosition[name][pos.name];
+            int d = results.drawsByPosition[name][pos.name];
+            int total = w + l + d;
+            if (total > 0) {
+                double posScore = w + (d * 0.5);
+                cout << "     " << pos.name << ": " << w << "-" << l << "-" << d 
+                     << " (" << (posScore / total * 100) << "%)\n";
+            }
+        }
+        cout << "\n";
+    }
+    
+    cout << "===========================================\n";
+    cout << "\nBEST CONFIGURATION: " << rankings[0].first << "\n";
+    cout << "with a win rate of " << rankings[0].second << "%\n\n";
+    
+    // Show which config is best at each position type
+    cout << "BEST BY POSITION TYPE:\n";
+    cout << "===========================================\n";
+    for (const auto& pos : positions) {
+        string bestConfig = "";
+        double bestScore = -1;
+        
+        for (const auto& config : configs) {
+            int w = results.winsByPosition[config.name][pos.name];
+            int l = results.lossesByPosition[config.name][pos.name];
+            int d = results.drawsByPosition[config.name][pos.name];
+            int total = w + l + d;
+            
+            if (total > 0) {
+                double posScore = (w + (d * 0.5)) / total;
+                if (posScore > bestScore) {
+                    bestScore = posScore;
+                    bestConfig = config.name;
+                }
+            }
+        }
+        
+        if (!bestConfig.empty()) {
+            cout << pos.name << ": " << bestConfig 
+                 << " (" << (bestScore * 100) << "%)\n";
+        }
+    }
+    cout << "===========================================\n\n";
+    
+    cout << "Recommendation: Use " << rankings[0].first << " as your baseline,\n";
+    cout << "or test variations of the top 2-3 configurations.\n";
     
     return 0;
 }

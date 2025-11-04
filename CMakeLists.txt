@@ -69,6 +69,12 @@ set(TUNING_SOURCES
     ${CORE_SOURCES}
 )
 
+# Benchmark version sources
+set(BENCHMARK_SOURCES
+    src/benchmark.cpp
+    ${CORE_SOURCES}
+)
+
 # Create console executable
 add_executable(chess_console ${CONSOLE_SOURCES} ${HEADERS})
 
@@ -77,6 +83,9 @@ add_executable(chess_gui ${GUI_SOURCES} ${HEADERS})
 
 # Create tuning executable
 add_executable(chess_tuning ${TUNING_SOURCES} ${HEADERS})
+
+# Create benchmark executable
+add_executable(chess_benchmark ${BENCHMARK_SOURCES} ${HEADERS})
 
 # Include SFML headers for GUI version
 target_include_directories(chess_gui PRIVATE ${SFML_INCLUDE_DIR})
@@ -115,7 +124,7 @@ add_custom_command(TARGET chess_gui POST_BUILD
     ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess_gui>/assets)
 
 # Set output directories
-set_target_properties(chess_console chess_gui chess_tuning PROPERTIES
+set_target_properties(chess_console chess_gui chess_tuning chess_benchmark PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"

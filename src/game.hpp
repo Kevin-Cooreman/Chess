@@ -87,4 +87,5 @@ public:
     string getPositionKey() const;  // Get FEN without move counters for repetition tracking
     void updateFEN();
     void recordPosition();  // Track position for repetition detection
+    void loadFEN(const string& fen);  // Load position from FEN string
 };

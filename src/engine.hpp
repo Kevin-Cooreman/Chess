@@ -12,6 +12,9 @@ class Engine {
 private:
     Evaluation evaluator;
 
+    // Helper functions
+    void orderMoves(vector<Move>& moves, ChessGame& game);
+    
     // Search algorithm
     double alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing);
 

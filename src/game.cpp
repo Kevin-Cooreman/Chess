@@ -651,6 +651,77 @@ void ChessGame::recordPosition() {
     positionHistory[posKey]++;
 }
 
+void ChessGame::loadFEN(const string& fen) {
+    // Parse FEN string and set up the board
+    // FEN format: piece_placement active_color castling en_passant halfmove fullmove
+    
+    initBoard();  // Clear the board first
+    
+    istringstream ss(fen);
+    string piecePlacement, activeColor, castling, enPassant;
+    int halfmove, fullmove;
+    
+    ss >> piecePlacement >> activeColor >> castling >> enPassant >> halfmove >> fullmove;
+    
+    // 1. Parse piece placement
+    int row = 0, col = 0;
+    for (char c : piecePlacement) {
+        if (c == '/') {
+            row++;
+            col = 0;
+        } else if (isdigit(c)) {
+            col += (c - '0');  // Skip empty squares
+        } else {
+            board[row][col] = charToPiece(c);
+            col++;
+        }
+    }
+    
+    // 2. Active color
+    isWhiteTurn = (activeColor == "w");
+    
+    // 3. Castling rights
+    whiteKingMoved = (castling.find('K') == string::npos && castling.find('Q') == string::npos);
+    blackKingMoved = (castling.find('k') == string::npos && castling.find('q') == string::npos);
+    whiteKingsideRookMoved = (castling.find('K') == string::npos);
+    whiteQueensideRookMoved = (castling.find('Q') == string::npos);
+    blackKingsideRookMoved = (castling.find('k') == string::npos);
+    blackQueensideRookMoved = (castling.find('q') == string::npos);
+    
+    // 4. En passant target square
+    if (enPassant != "-") {
+        int epRow, epCol;
+        if (parseCoordinate(enPassant, epRow, epCol)) {
+            // En passant target square is where the pawn would land
+            // We need to set the target behind the pawn that just moved
+            if (epRow == 2) {  // White pawn moved from row 6 to row 4
+                enPassantTargetRow = 3;
+                enPassantTargetCol = epCol;
+            } else if (epRow == 5) {  // Black pawn moved from row 1 to row 3
+                enPassantTargetRow = 4;
+                enPassantTargetCol = epCol;
+            }
+        }
+    } else {
+        enPassantTargetRow = -1;
+        enPassantTargetCol = -1;
+    }
+    
+    // 5. Halfmove clock and fullmove number
+    halfmoveClock = halfmove;
+    fullmoveNumber = fullmove;
+    
+    // Reset game state
+    gameOver = false;
+    gameResult = "";
+    gameHistory.clear();
+    positionHistory.clear();
+    
+    // Update FEN and record position
+    updateFEN();
+    recordPosition();
+}
+
 bool ChessGame::isDrawByRepetition() const {
     string posKey = getPositionKey();
     
