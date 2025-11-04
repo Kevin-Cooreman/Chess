@@ -11,10 +11,10 @@ using namespace std;
 double Evaluation::evaluate(const ChessGame& game) const {
     double evaluation = 0.0;
 
-    evaluation += 10*materialCount(game);
-    evaluation += 3*position(game);
-    evaluation += 3*kingsafety(game);
-    evaluation += 0.05*pawnStructure(game);
+    evaluation += 10*materialCount(game);      // Material is most important
+    evaluation += 10*position(game);           // Position also very important (PST values are scaled properly now)
+    evaluation += 5*kingsafety(game);          // King safety matters
+    evaluation += 0.1*pawnStructure(game);     // Pawn structure minor factor
 
     return evaluation;
 }
@@ -61,22 +61,23 @@ double Evaluation::materialCount(const ChessGame& game) const {
 
 // Piece-Square Tables (PST) - bonuses for pieces on good squares
 // Values are from white's perspective (flip for black)
+// Values in centipawns (1 pawn = 100), will be scaled to match material values
 static const int pawnPST[8][8] = {
-    { 0,  0,  0,  0,  0,  0,  0,  0},
-    {50, 50, 50, 50, 50, 50, 50, 50},
-    {10, 10, 20, 30, 30, 20, 10, 10},
-    { 5,  5, 10, 25, 25, 10,  5,  5},
-    { 0,  0,  0, 20, 20,  0,  0,  0},
-    { 5, -5,-10,  0,  0,-10, -5,  5},
-    { 5, 10, 10,-20,-20, 10, 10,  5},
-    { 0,  0,  0,  0,  0,  0,  0,  0}
+    {  0,  0,  0,  0,  0,  0,  0,  0},  // Rank 8 (pawns can't be here)
+    { 50, 50, 50, 50, 50, 50, 50, 50},  // Rank 7 (about to promote!)
+    { 10, 10, 20, 30, 30, 20, 10, 10},  // Rank 6
+    {  5,  5, 10, 25, 25, 10,  5,  5},  // Rank 5
+    {  0,  0,  0, 20, 20,  0,  0,  0},  // Rank 4 (center pawns)
+    {  5, -5,-10,  0,  0,-10, -5,  5},  // Rank 3
+    {  5, 10, 10,-20,-20, 10, 10,  5},  // Rank 2 (penalize d/e pawns not moved)
+    {  0,  0,  0,  0,  0,  0,  0,  0}   // Rank 1 (pawns can't be here)
 };
 
 static const int knightPST[8][8] = {
-    {-50,-40,-30,-30,-30,-30,-40,-50},
+    {-50,-40,-30,-30,-30,-30,-40,-50},  // Knights on rim are dim
     {-40,-20,  0,  0,  0,  0,-20,-40},
     {-30,  0, 10, 15, 15, 10,  0,-30},
-    {-30,  5, 15, 20, 20, 15,  5,-30},
+    {-30,  5, 15, 20, 20, 15,  5,-30},  // Knights love the center
     {-30,  0, 15, 20, 20, 15,  0,-30},
     {-30,  5, 10, 15, 15, 10,  5,-30},
     {-40,-20,  0,  5,  5,  0,-20,-40},
@@ -156,14 +157,14 @@ double Evaluation::position(const ChessGame& game) const {
         // For black pieces, flip the row to get correct PST index
         int pstRow = isWhite ? row : (7 - row);
         
-        // Use piece-square tables instead of generating moves
+        // Use piece-square tables (values are in centipawns, so divide by 100 to match pawn=1 scale)
         switch(piece) {
-            case 'p': pieceValue = pawnPST[pstRow][col] * 0.01; break;
-            case 'n': pieceValue = knightPST[pstRow][col] * 0.01; break;
-            case 'b': pieceValue = bishopPST[pstRow][col] * 0.01; break;
-            case 'r': pieceValue = rookPST[pstRow][col] * 0.01; break;
-            case 'q': pieceValue = queenPST[pstRow][col] * 0.01; break;
-            case 'k': pieceValue = kingMiddlegamePST[pstRow][col] * 0.01; break;
+            case 'p': pieceValue = pawnPST[pstRow][col] / 100.0; break;
+            case 'n': pieceValue = knightPST[pstRow][col] / 100.0; break;
+            case 'b': pieceValue = bishopPST[pstRow][col] / 100.0; break;
+            case 'r': pieceValue = rookPST[pstRow][col] / 100.0; break;
+            case 'q': pieceValue = queenPST[pstRow][col] / 100.0; break;
+            case 'k': pieceValue = kingMiddlegamePST[pstRow][col] / 100.0; break;
             default: 
                 col++;
                 continue;
