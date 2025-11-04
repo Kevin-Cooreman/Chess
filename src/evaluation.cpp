@@ -59,7 +59,75 @@ double Evaluation::materialCount(const ChessGame& game) const {
     return count;
 }
 
-// Evaluate piece positioning based on mobility
+// Piece-Square Tables (PST) - bonuses for pieces on good squares
+// Values are from white's perspective (flip for black)
+static const int pawnPST[8][8] = {
+    { 0,  0,  0,  0,  0,  0,  0,  0},
+    {50, 50, 50, 50, 50, 50, 50, 50},
+    {10, 10, 20, 30, 30, 20, 10, 10},
+    { 5,  5, 10, 25, 25, 10,  5,  5},
+    { 0,  0,  0, 20, 20,  0,  0,  0},
+    { 5, -5,-10,  0,  0,-10, -5,  5},
+    { 5, 10, 10,-20,-20, 10, 10,  5},
+    { 0,  0,  0,  0,  0,  0,  0,  0}
+};
+
+static const int knightPST[8][8] = {
+    {-50,-40,-30,-30,-30,-30,-40,-50},
+    {-40,-20,  0,  0,  0,  0,-20,-40},
+    {-30,  0, 10, 15, 15, 10,  0,-30},
+    {-30,  5, 15, 20, 20, 15,  5,-30},
+    {-30,  0, 15, 20, 20, 15,  0,-30},
+    {-30,  5, 10, 15, 15, 10,  5,-30},
+    {-40,-20,  0,  5,  5,  0,-20,-40},
+    {-50,-40,-30,-30,-30,-30,-40,-50}
+};
+
+static const int bishopPST[8][8] = {
+    {-20,-10,-10,-10,-10,-10,-10,-20},
+    {-10,  0,  0,  0,  0,  0,  0,-10},
+    {-10,  0,  5, 10, 10,  5,  0,-10},
+    {-10,  5,  5, 10, 10,  5,  5,-10},
+    {-10,  0, 10, 10, 10, 10,  0,-10},
+    {-10, 10, 10, 10, 10, 10, 10,-10},
+    {-10,  5,  0,  0,  0,  0,  5,-10},
+    {-20,-10,-10,-10,-10,-10,-10,-20}
+};
+
+static const int rookPST[8][8] = {
+    { 0,  0,  0,  0,  0,  0,  0,  0},
+    { 5, 10, 10, 10, 10, 10, 10,  5},
+    {-5,  0,  0,  0,  0,  0,  0, -5},
+    {-5,  0,  0,  0,  0,  0,  0, -5},
+    {-5,  0,  0,  0,  0,  0,  0, -5},
+    {-5,  0,  0,  0,  0,  0,  0, -5},
+    {-5,  0,  0,  0,  0,  0,  0, -5},
+    { 0,  0,  0,  5,  5,  0,  0,  0}
+};
+
+static const int queenPST[8][8] = {
+    {-20,-10,-10, -5, -5,-10,-10,-20},
+    {-10,  0,  0,  0,  0,  0,  0,-10},
+    {-10,  0,  5,  5,  5,  5,  0,-10},
+    { -5,  0,  5,  5,  5,  5,  0, -5},
+    {  0,  0,  5,  5,  5,  5,  0, -5},
+    {-10,  5,  5,  5,  5,  5,  0,-10},
+    {-10,  0,  5,  0,  0,  0,  0,-10},
+    {-20,-10,-10, -5, -5,-10,-10,-20}
+};
+
+static const int kingMiddlegamePST[8][8] = {
+    {-30,-40,-40,-50,-50,-40,-40,-30},
+    {-30,-40,-40,-50,-50,-40,-40,-30},
+    {-30,-40,-40,-50,-50,-40,-40,-30},
+    {-30,-40,-40,-50,-50,-40,-40,-30},
+    {-20,-30,-30,-40,-40,-30,-30,-20},
+    {-10,-20,-20,-20,-20,-20,-20,-10},
+    { 20, 20,  0,  0,  0,  0, 20, 20},
+    { 20, 30, 10,  0,  0, 10, 30, 20}
+};
+
+// Evaluate piece positioning using piece-square tables
 double Evaluation::position(const ChessGame& game) const {
     double positionValue = 0.0;
     string fen = game.getCurrentFEN();
@@ -83,20 +151,26 @@ double Evaluation::position(const ChessGame& game) const {
         // Now we have a piece at position [row][col]
         double pieceValue = 0;
         char piece = tolower(c);
+        bool isWhite = isupper(c);
         
-        // evaluate position by nr of moves available
+        // For black pieces, flip the row to get correct PST index
+        int pstRow = isWhite ? row : (7 - row);
+        
+        // Use piece-square tables instead of generating moves
         switch(piece) {
-            case 'n': pieceValue = generateKnightMoves(row, col).size() * 0.2; break;
-            case 'b': pieceValue = generateBishopMoves(row, col).size() * 0.2; break;
-            case 'r': pieceValue = generateRookMoves(row, col).size() * 0.2; break;
-            case 'q': pieceValue = generateQueenMoves(row, col).size() * 0.3; break;
+            case 'p': pieceValue = pawnPST[pstRow][col] * 0.01; break;
+            case 'n': pieceValue = knightPST[pstRow][col] * 0.01; break;
+            case 'b': pieceValue = bishopPST[pstRow][col] * 0.01; break;
+            case 'r': pieceValue = rookPST[pstRow][col] * 0.01; break;
+            case 'q': pieceValue = queenPST[pstRow][col] * 0.01; break;
+            case 'k': pieceValue = kingMiddlegamePST[pstRow][col] * 0.01; break;
             default: 
                 col++;
                 continue;
         }
         
-        // Add for white pieces (uppercase), subtract for black pieces (lowercase)
-        if(isupper(c)) {
+        // Add for white pieces, subtract for black pieces
+        if(isWhite) {
             positionValue += pieceValue;
         } else {
             positionValue -= pieceValue;
@@ -108,9 +182,8 @@ double Evaluation::position(const ChessGame& game) const {
     return positionValue;
 }
 
-// king safety evaluation
+// king safety evaluation - simplified version
 double Evaluation::kingsafety(const ChessGame& game) const {
-    // TODO: Implement king safety evaluation
     double kingSafetyValue = 0.0;
     string fen = game.getCurrentFEN();
 
@@ -130,26 +203,35 @@ double Evaluation::kingsafety(const ChessGame& game) const {
             continue;
         }
         
-        // Now we have a piece at position [row][col]
-        double pieceValue = 0;
         char piece = tolower(c);
 
         if(piece == 'k'){
-            int ifKingWasQueen = generateQueenMoves(row, col).size();
-            pieceValue = ifKingWasQueen * 0.5; // Penalty for exposed king
-        }
-
-        else{
-            col++;
-            continue;
-        }
-        
-        // More mobility = more exposed = bad for that side
-        // Subtract for white king exposure, add for black king exposure
-        if(isupper(c)) {
-            kingSafetyValue -= pieceValue;  // White king exposed is bad
-        } else {
-            kingSafetyValue += pieceValue;  // Black king exposed is good for white
+            bool isWhite = isupper(c);
+            double safetyPenalty = 0.0;
+            
+            // Kings are safer on back rank and in corners
+            if (isWhite) {
+                // White king: safer on row 7 (back rank)
+                safetyPenalty = (7 - row) * 2.0;  // Penalty for advancing
+                // Bonus for being castled (on g or c file on back rank)
+                if (row == 7 && (col == 6 || col == 2)) {
+                    safetyPenalty -= 5.0;
+                }
+            } else {
+                // Black king: safer on row 0 (back rank)
+                safetyPenalty = row * 2.0;  // Penalty for advancing
+                // Bonus for being castled
+                if (row == 0 && (col == 6 || col == 2)) {
+                    safetyPenalty -= 5.0;
+                }
+            }
+            
+            // More exposure = bad for that side
+            if(isWhite) {
+                kingSafetyValue -= safetyPenalty;
+            } else {
+                kingSafetyValue += safetyPenalty;
+            }
         }
         
         col++;  // Move to next column
