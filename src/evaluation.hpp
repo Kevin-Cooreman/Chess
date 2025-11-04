@@ -20,8 +20,7 @@ protected:
     static constexpr double ROOK_VALUE = 5.0;
     static constexpr double QUEEN_VALUE = 9.0;
     
-    // Evaluation components
-    double materialCount(const ChessGame& game) const;
+    // Evaluation components (protected for subclass access)
     double position(const ChessGame& game) const;
     double kingsafety(const ChessGame& game) const;
     double pawnStructure(const ChessGame& game) const;
@@ -29,6 +28,9 @@ protected:
 public:
     Evaluation() = default;
     ~Evaluation() = default;
+    
+    // Public evaluation functions
+    double materialCount(const ChessGame& game) const;
     
     // Main evaluation function
     // Returns positive for white advantage, negative for black advantage

@@ -51,8 +51,8 @@ public:
     }
 };
 
-// Play one game
-string playGame(Chromosome& c1, Chromosome& c2, bool c1PlaysWhite, int depth) {
+// Play one game - use material count at end if no winner
+string playGame(Chromosome& c1, Chromosome& c2, bool c1PlaysWhite, int depth, mt19937& gen) {
     ChessGame game;
     
     GeneticEvaluation eval1(c1);
@@ -62,7 +62,10 @@ string playGame(Chromosome& c1, Chromosome& c2, bool c1PlaysWhite, int depth) {
     Engine engine2(eval2);
     
     int moveCount = 0;
-    int maxMoves = 150;
+    int maxMoves = 80;  // Shorter games
+    
+    // Add slight depth randomization to create asymmetry
+    uniform_int_distribution<> depthVariation(-1, 1);
     
     while (!game.isGameOver() && moveCount < maxMoves) {
         bool isWhiteTurn = game.isWhiteToMove();
@@ -74,7 +77,9 @@ string playGame(Chromosome& c1, Chromosome& c2, bool c1PlaysWhite, int depth) {
             currentEngine = &engine2;
         }
         
-        Move bestMove = currentEngine->getBestMove(game, depth);
+        // Vary depth slightly each move to break determinism
+        int moveDepth = max(1, depth + depthVariation(gen));
+        Move bestMove = currentEngine->getBestMove(game, moveDepth);
         
         if (bestMove.startRow == -1) {
             break;
@@ -94,11 +99,21 @@ string playGame(Chromosome& c1, Chromosome& c2, bool c1PlaysWhite, int depth) {
         }
     }
     
+    // Game timed out at 80 moves - use material count to decide winner
+    double materialScore = eval1.materialCount(game);
+    
+    // Award win if material advantage is significant (3+ pawns)
+    if (materialScore > 3.0) {  // White ahead
+        return c1PlaysWhite ? "c1" : "c2";
+    } else if (materialScore < -3.0) {  // Black ahead
+        return c1PlaysWhite ? "c2" : "c1";
+    }
+    
     return "draw";
 }
 
 // Tournament to evaluate fitness
-void evaluateFitness(vector<Chromosome>& population, int gamesPerMatchup, int depth) {
+void evaluateFitness(vector<Chromosome>& population, int gamesPerMatchup, int depth, mt19937& gen) {
     // Reset fitness
     for (auto& c : population) {
         c.wins = 0;
@@ -112,7 +127,7 @@ void evaluateFitness(vector<Chromosome>& population, int gamesPerMatchup, int de
         for (size_t j = i + 1; j < population.size(); j++) {
             for (int g = 0; g < gamesPerMatchup; g++) {
                 // Game 1: i plays white
-                string result1 = playGame(population[i], population[j], true, depth);
+                string result1 = playGame(population[i], population[j], true, depth, gen);
                 if (result1 == "c1") {
                     population[i].wins++;
                     population[j].losses++;
@@ -125,7 +140,7 @@ void evaluateFitness(vector<Chromosome>& population, int gamesPerMatchup, int de
                 }
                 
                 // Game 2: i plays black
-                string result2 = playGame(population[i], population[j], false, depth);
+                string result2 = playGame(population[i], population[j], false, depth, gen);
                 if (result2 == "c1") {
                     population[i].wins++;
                     population[j].losses++;
@@ -177,10 +192,10 @@ Chromosome crossover(const Chromosome& parent1, const Chromosome& parent2, mt199
 // Mutation: randomly adjust weights
 void mutate(Chromosome& c, double mutationRate, mt19937& gen) {
     uniform_real_distribution<> prob(0.0, 1.0);
-    normal_distribution<> adjustment(0.0, 0.3);  // Standard deviation of 0.3
+    normal_distribution<> adjustment(0.0, 2.0);  // Bigger mutations!
     
     if (prob(gen) < mutationRate) {
-        c.materialWeight = max(1.0, c.materialWeight + adjustment(gen));
+        c.materialWeight = max(0.5, c.materialWeight + adjustment(gen));
     }
     if (prob(gen) < mutationRate) {
         c.positionWeight = max(0.1, c.positionWeight + adjustment(gen));
@@ -198,11 +213,11 @@ int main() {
     cout << "==========================================\n\n";
     
     // Parameters
-    int populationSize = 20;
-    int generations = 50;
-    int gamesPerMatchup = 5;  // Games per matchup (both colors)
-    int depth = 6;
-    double mutationRate = 0.3;
+    int populationSize = 12;
+    int generations = 40;
+    int gamesPerMatchup = 2;  // Games per matchup (both colors)
+    int depth = 2;  // Lower depth = more mistakes = more decisive games
+    double mutationRate = 0.5;  // Higher mutation
     
     cout << "Parameters:\n";
     cout << "  Population size: " << populationSize << "\n";
@@ -227,19 +242,21 @@ int main() {
     random_device rd;
     mt19937 gen(rd());
     
-    // Initialize population with random weights around sensible values
+    // Initialize population with WIDE range of weights
     vector<Chromosome> population;
-    uniform_real_distribution<> matDist(5.0, 15.0);
-    uniform_real_distribution<> posDist(3.0, 15.0);
-    uniform_real_distribution<> ksDist(1.0, 10.0);
-    uniform_real_distribution<> psDist(0.01, 0.5);
+    uniform_real_distribution<> matDist(1.0, 30.0);  // Wider!
+    uniform_real_distribution<> posDist(0.5, 30.0);  // Much wider!
+    uniform_real_distribution<> ksDist(0.1, 20.0);   // Wider!
+    uniform_real_distribution<> psDist(0.001, 1.0);  // Wider!
     
-    // Add some known good starting points
-    population.push_back(Chromosome(10.0, 10.0, 5.0, 0.1));  // Current weights
-    population.push_back(Chromosome(10.0, 3.0, 3.0, 0.05));  // Old weights
+    // Add some extreme starting points for diversity
+    population.push_back(Chromosome(10.0, 10.0, 5.0, 0.1));   // Current
+    population.push_back(Chromosome(30.0, 1.0, 1.0, 0.01));   // Material focused
+    population.push_back(Chromosome(5.0, 25.0, 5.0, 0.1));    // Position focused
+    population.push_back(Chromosome(10.0, 5.0, 20.0, 0.1));   // King safety focused
     
     // Fill rest with random
-    for (int i = 2; i < populationSize; i++) {
+    for (int i = 4; i < populationSize; i++) {
         population.push_back(Chromosome(
             matDist(gen),
             posDist(gen),
@@ -256,7 +273,7 @@ int main() {
         
         // Evaluate fitness
         cout << "Running tournament (" << gamesPerGen << " games)...\n";
-        evaluateFitness(population, gamesPerMatchup, depth);
+        evaluateFitness(population, gamesPerMatchup, depth, gen);
         
         // Sort by fitness
         sort(population.begin(), population.end(), 
@@ -301,7 +318,7 @@ int main() {
     cout << "\n\n===========================================\n";
     cout << "FINAL EVALUATION\n";
     cout << "===========================================\n";
-    evaluateFitness(population, 2, depth);  // More games for final eval
+    evaluateFitness(population, 2, depth, gen);  // More games for final eval
     
     sort(population.begin(), population.end(), 
          [](const Chromosome& a, const Chromosome& b) {
