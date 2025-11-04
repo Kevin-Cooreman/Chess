@@ -7,10 +7,18 @@
 #include <vector>
 #include <string>
 #include <limits>
+#include <unordered_map>
+
+// Transposition table entry
+struct TTEntry {
+    double score;
+    int depth;
+};
 
 class Engine {
 private:
     Evaluation evaluator;
+    std::unordered_map<std::string, TTEntry> transpositionTable;
 
     // Helper functions
     void orderMoves(vector<Move>& moves, ChessGame& game);
@@ -28,5 +36,6 @@ public:
     
     // Optional: for debugging
     int nodesSearched = 0;
+    int ttHits = 0;  // Transposition table hits
 };
 

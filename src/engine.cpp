@@ -7,6 +7,8 @@ using namespace std;
 // Get the best move for the current position
 Move Engine::getBestMove(ChessGame& game, int depth) {
     nodesSearched = 0;  // Reset counter at start of search
+    ttHits = 0;  // Reset TT hits counter
+    transpositionTable.clear();  // Clear transposition table for new search
     
     vector<Move> legalMoves = game.getLegalMoves();
     
@@ -116,21 +118,36 @@ void Engine::orderMoves(vector<Move>& moves, ChessGame& game) {
 double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing) {
     nodesSearched++;  // Count this node
     
+    // Check transposition table
+    string posKey = game.getPositionKey();
+    auto it = transpositionTable.find(posKey);
+    if (it != transpositionTable.end() && it->second.depth >= depth) {
+        ttHits++;
+        return it->second.score;
+    }
+    
     if(depth == 0){
-        return evaluator.evaluate(game);
+        double eval = evaluator.evaluate(game);
+        // Store in transposition table
+        transpositionTable[posKey] = {eval, depth};
+        return eval;
     }
 
     vector<Move> legalmoves = game.getLegalMoves();
     
     // If no legal moves, it's checkmate or stalemate
     if(legalmoves.empty()) {
+        double eval;
         if(game.isInCheck()) {
             // Checkmate: return extreme values
-            return isMaximizing ? -100000.0 : 100000.0;
+            eval = isMaximizing ? -100000.0 : 100000.0;
         } else {
             // Stalemate: return 0 (draw)
-            return 0.0;
+            eval = 0.0;
         }
+        // Store in transposition table
+        transpositionTable[posKey] = {eval, depth};
+        return eval;
     }
     
     // Order moves for better alpha-beta pruning
@@ -153,6 +170,8 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             }
         }
         
+        // Store in transposition table
+        transpositionTable[posKey] = {maxEval, depth};
         return maxEval;
     } else {
         //black to move - minimise eval
@@ -171,6 +190,8 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             }
         }
         
+        // Store in transposition table
+        transpositionTable[posKey] = {minEval, depth};
         return minEval;
     }
 }

@@ -248,7 +248,7 @@ int main() {
     cout << "========================================\n\n";
     
     // Define configurations to test - EXTREME DIFFERENCES
-    vector<EvalConfig> configs = {
+    vector<EvalConfig> allConfigs = {
         {"Balanced", 10.0, 3.0, 3.0, 0.05},
         {"MaterialObsessed", 50.0, 1.0, 1.0, 0.01},    // Cares almost only about pieces
         {"PositionalMaster", 8.0, 12.0, 2.0, 0.1},     // Loves mobility and activity
@@ -256,7 +256,22 @@ int main() {
         {"Aggressive", 8.0, 8.0, 0.5, 0.05},           // Ignores king, seeks activity
     };
     
-    cout << "Testing configurations:\n";
+    cout << "Select test mode:\n";
+    cout << "1. Quick test (Balanced vs MaterialObsessed only)\n";
+    cout << "2. Full tournament (all 5 configurations)\n";
+    cout << "Choice (1-2): ";
+    int modeChoice;
+    cin >> modeChoice;
+    
+    vector<EvalConfig> configs;
+    if (modeChoice == 1) {
+        configs.push_back(allConfigs[0]);  // Balanced
+        configs.push_back(allConfigs[1]);  // MaterialObsessed
+    } else {
+        configs = allConfigs;
+    }
+    
+    cout << "\nTesting configurations:\n";
     for (size_t i = 0; i < configs.size(); i++) {
         cout << i + 1 << ". " << configs[i].name << ": "
              << "M=" << configs[i].materialWeight 
@@ -265,7 +280,30 @@ int main() {
              << ", PS=" << configs[i].pawnStructureWeight << "\n";
     }
     
-    cout << "\nEnter number of games per side per position (recommended 3-5): ";
+    // Get test positions
+    vector<StartingPosition> allPositions = getTestPositions();
+    
+    cout << "\nAvailable positions:\n";
+    for (size_t i = 0; i < allPositions.size(); i++) {
+        cout << i + 1 << ". " << allPositions[i].name << "\n";
+    }
+    
+    cout << "\nSelect position to test (1-" << allPositions.size() 
+         << "), or 0 for ALL positions: ";
+    int posChoice;
+    cin >> posChoice;
+    
+    vector<StartingPosition> positions;
+    if (posChoice == 0) {
+        positions = allPositions;
+    } else if (posChoice >= 1 && posChoice <= (int)allPositions.size()) {
+        positions.push_back(allPositions[posChoice - 1]);
+    } else {
+        cout << "Invalid choice, using Standard Opening\n";
+        positions.push_back(allPositions[0]);
+    }
+    
+    cout << "\nEnter number of games per side per position (recommended 2-3): ";
     int gamesPerSide;
     cin >> gamesPerSide;
     
@@ -273,12 +311,33 @@ int main() {
     int depth;
     cin >> depth;
     
+    // Calculate and display estimated time
+    int totalMatchups = (configs.size() * (configs.size() - 1)) / 2;  // Round-robin
+    int gamesPerMatchup = gamesPerSide * 2;
+    int totalGames = totalMatchups * gamesPerMatchup * positions.size();
+    
+    cout << "\n===========================================\n";
+    cout << "Tournament Overview:\n";
+    cout << "  Configurations: " << configs.size() << "\n";
+    cout << "  Matchups: " << totalMatchups << "\n";
+    cout << "  Positions: " << positions.size() << "\n";
+    cout << "  Games per matchup: " << gamesPerMatchup << "\n";
+    cout << "  TOTAL GAMES: " << totalGames << "\n";
+    cout << "  Depth: " << depth << "\n";
+    
+    // Estimate time (rough: 5s per game at depth 2, 20s at depth 3, 60s at depth 4)
+    int secondsPerGame = (depth == 2) ? 5 : (depth == 3) ? 20 : 60;
+    int estimatedMinutes = (totalGames * secondsPerGame) / 60;
+    cout << "  Estimated time: ~" << estimatedMinutes << " minutes\n";
+    cout << "===========================================\n";
+    
+    cout << "\nPress Enter to start, or Ctrl+C to cancel...";
+    cin.ignore();
+    cin.get();
+    
     cout << "\nStarting tournament...\n";
     
-    // Get test positions
-    vector<StartingPosition> positions = getTestPositions();
-    
-    cout << "\nTesting " << positions.size() << " different positions:\n";
+    cout << "\nTesting " << positions.size() << " position(s):\n";
     for (const auto& pos : positions) {
         cout << "  - " << pos.name << "\n";
     }

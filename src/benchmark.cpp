@@ -12,6 +12,7 @@ struct BenchResult {
     string position;
     int depth;
     int nodes;
+    int ttHits;
     double timeMs;
     double nodesPerSec;
     string bestMove;
@@ -28,11 +29,12 @@ BenchResult benchmarkPosition(ChessGame& game, const string& posName, int depth)
     
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
     int nodes = engine.nodesSearched;
+    int ttHits = engine.ttHits;
     double nps = (nodes / timeMs) * 1000.0;
     
     cout << " Done!" << endl;
     
-    return {posName, depth, nodes, timeMs, nps, game.moveToString(bestMove)};
+    return {posName, depth, nodes, ttHits, timeMs, nps, game.moveToString(bestMove)};
 }
 
 void printResults(const vector<BenchResult>& results) {
@@ -44,28 +46,34 @@ void printResults(const vector<BenchResult>& results) {
     cout << left << setw(25) << "Position" 
          << right << setw(6) << "Depth"
          << setw(12) << "Nodes"
+         << setw(10) << "TT Hits"
          << setw(10) << "Time(ms)"
          << setw(12) << "Nodes/sec"
          << "  " << left << setw(12) << "Best Move" << endl;
-    cout << string(80, '-') << endl;
+    cout << string(90, '-') << endl;
     
     int totalNodes = 0;
+    int totalTTHits = 0;
     double totalTime = 0;
     
     for (const auto& r : results) {
         cout << left << setw(25) << r.position
              << right << setw(6) << r.depth
              << setw(12) << r.nodes
+             << setw(10) << r.ttHits
              << setw(10) << fixed << setprecision(1) << r.timeMs
              << setw(12) << fixed << setprecision(0) << r.nodesPerSec
              << "  " << left << r.bestMove << endl;
         
         totalNodes += r.nodes;
+        totalTTHits += r.ttHits;
         totalTime += r.timeMs;
     }
     
-    cout << string(80, '-') << endl;
+    cout << string(90, '-') << endl;
     cout << "Total nodes: " << totalNodes << endl;
+    cout << "Total TT hits: " << totalTTHits << " (" 
+         << fixed << setprecision(1) << (100.0 * totalTTHits / totalNodes) << "%)" << endl;
     cout << "Total time: " << fixed << setprecision(1) << totalTime << " ms" << endl;
     cout << "Average: " << fixed << setprecision(0) << (totalNodes / totalTime) * 1000.0 << " nodes/sec" << endl;
     cout << "================================================================\n\n";
