@@ -308,6 +308,9 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     // Execute the move
     makeMove(move);
     
+    // Regenerate FEN string to reflect the new board state
+    currentFEN = generateFEN();
+    
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
     

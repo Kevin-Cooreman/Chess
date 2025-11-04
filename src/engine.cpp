@@ -12,43 +12,93 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     
     vector<Move> legalMoves = game.getLegalMoves();
     
+    cout << "DEBUG: Found " << legalMoves.size() << " legal moves at depth " << depth << endl;
+    
     if (legalMoves.empty()) {
         return Move(-1, -1, -1, -1); // No legal moves
     }
     
+    // Validate that moves don't leave king in check
+    vector<Move> validatedMoves;
+    for (const Move& move : legalMoves) {
+        game.makeMoveForEngine(move);
+        bool leavesKingInCheck = game.isInCheck(); // Check if OUR king is in check after move
+        game.undoMove();
+        
+        if (!leavesKingInCheck) {
+            validatedMoves.push_back(move);
+        } else {
+            char startFile = 'a' + move.startColumn;
+            char targetFile = 'a' + move.targetColumn;
+            int startRank = 8 - move.startRow;
+            int targetRank = 8 - move.targetRow;
+            cout << "DEBUG: ILLEGAL MOVE (leaves king in check): " 
+                 << startFile << startRank << targetFile << targetRank << endl;
+        }
+    }
+    
+    cout << "DEBUG: After validation: " << validatedMoves.size() << " legal moves" << endl;
+    
+    if (validatedMoves.empty()) {
+        return Move(-1, -1, -1, -1); // No valid moves
+    }
+    
     bool isWhiteTurn = game.isWhiteToMove();
-    Move bestMove = legalMoves[0];
+    Move bestMove = validatedMoves[0];
     
     if (isWhiteTurn) {
         // White wants to maximize evaluation
         double bestEval = -numeric_limits<double>::infinity();
         
-        for (const Move& move : legalMoves) {
+        for (const Move& move : validatedMoves) {
             game.makeMoveForEngine(move);
+            
+            // Debug: Print FEN after move
+            char startFile = 'a' + move.startColumn;
+            char targetFile = 'a' + move.targetColumn;
+            int startRank = 8 - move.startRow;
+            int targetRank = 8 - move.targetRow;
+            cout << "DEBUG: Evaluating " << startFile << startRank << targetFile << targetRank 
+                 << " FEN: " << game.getCurrentFEN().substr(0, 40) << "..." << endl;
+            
             double eval = alphabeta(game, depth - 1, -numeric_limits<double>::infinity(), 
                                    numeric_limits<double>::infinity(), false);
             game.undoMove();
+            
+            // Debug output
+            cout << "Move " << startFile << startRank << targetFile << targetRank 
+                 << " eval: " << eval << endl;
             
             if (eval > bestEval) {
                 bestEval = eval;
                 bestMove = move;
             }
         }
+        cout << "Best move eval: " << bestEval << endl;
     } else {
         // Black wants to minimize evaluation
         double bestEval = numeric_limits<double>::infinity();
         
-        for (const Move& move : legalMoves) {
+        for (const Move& move : validatedMoves) {
             game.makeMoveForEngine(move);
             double eval = alphabeta(game, depth - 1, -numeric_limits<double>::infinity(), 
                                    numeric_limits<double>::infinity(), true);
             game.undoMove();
+            
+            // Debug output
+            char startFile = 'a' + move.startColumn;
+            char targetFile = 'a' + move.targetColumn;
+            int startRank = 8 - move.startRow;
+            int targetRank = 8 - move.targetRow;
+            cout << "Move " << startFile << startRank << targetFile << targetRank 
+                 << " eval: " << eval << endl;
             
             if (eval < bestEval) {
                 bestEval = eval;
                 bestMove = move;
             }
         }
+        cout << "Best move eval: " << bestEval << endl;
     }
     
     // Clear undo stack after search is complete
