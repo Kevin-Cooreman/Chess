@@ -181,7 +181,7 @@ Chromosome crossover(const Chromosome& parent1, const Chromosome& parent2, mt199
     double alpha = blend(gen);
     
     Chromosome child;
-    child.materialWeight = alpha * parent1.materialWeight + (1 - alpha) * parent2.materialWeight;
+    child.materialWeight = 1.0;  // Always keep material weight at 1.0 for reference
     child.positionWeight = alpha * parent1.positionWeight + (1 - alpha) * parent2.positionWeight;
     child.kingSafetyWeight = alpha * parent1.kingSafetyWeight + (1 - alpha) * parent2.kingSafetyWeight;
     child.pawnStructureWeight = alpha * parent1.pawnStructureWeight + (1 - alpha) * parent2.pawnStructureWeight;
@@ -194,9 +194,9 @@ void mutate(Chromosome& c, double mutationRate, mt19937& gen) {
     uniform_real_distribution<> prob(0.0, 1.0);
     normal_distribution<> adjustment(0.0, 2.0);  // Bigger mutations!
     
-    if (prob(gen) < mutationRate) {
-        c.materialWeight = max(0.5, c.materialWeight + adjustment(gen));
-    }
+    // Material weight always stays at 1.0 for reference
+    c.materialWeight = 1.0;
+    
     if (prob(gen) < mutationRate) {
         c.positionWeight = max(0.1, c.positionWeight + adjustment(gen));
     }
@@ -229,12 +229,15 @@ int main() {
     // Calculate total games
     int gamesPerGen = (populationSize * (populationSize - 1) / 2) * gamesPerMatchup * 2;
     int totalGames = gamesPerGen * generations;
-    double estimatedSeconds = totalGames * 0.03;  // ~0.03s per game at depth 3
+    // Realistic estimate based on ~20-40 moves per game with fast engine:
+    // depth 2: ~0.1s, depth 3: ~0.4s, depth 4: ~2s per game
+    double secondsPerGame = (depth == 2) ? 0.1 : (depth == 3) ? 0.4 : 2.0;
+    double estimatedSeconds = totalGames * secondsPerGame;
     
     cout << "  Games per generation: " << gamesPerGen << "\n";
     cout << "  Total games: " << totalGames << "\n";
     cout << "  Estimated time: ~" << (int)(estimatedSeconds / 60) << " min " 
-         << (int)estimatedSeconds % 60 << " sec\n\n";
+         << (int)estimatedSeconds % 60 << " sec (at depth " << depth << ")\n\n";
     
     cout << "Press Enter to start...";
     cin.get();
@@ -244,21 +247,20 @@ int main() {
     
     // Initialize population with WIDE range of weights
     vector<Chromosome> population;
-    uniform_real_distribution<> matDist(1.0, 30.0);  // Wider!
     uniform_real_distribution<> posDist(0.5, 30.0);  // Much wider!
     uniform_real_distribution<> ksDist(0.1, 20.0);   // Wider!
     uniform_real_distribution<> psDist(0.001, 1.0);  // Wider!
     
-    // Add some extreme starting points for diversity
-    population.push_back(Chromosome(10.0, 10.0, 5.0, 0.1));   // Current
-    population.push_back(Chromosome(30.0, 1.0, 1.0, 0.01));   // Material focused
-    population.push_back(Chromosome(5.0, 25.0, 5.0, 0.1));    // Position focused
-    population.push_back(Chromosome(10.0, 5.0, 20.0, 0.1));   // King safety focused
+    // Add some extreme starting points for diversity (material always 1.0)
+    population.push_back(Chromosome(1.0, 10.0, 5.0, 0.1));   // Balanced
+    population.push_back(Chromosome(1.0, 1.0, 1.0, 0.01));   // Minimal weights
+    population.push_back(Chromosome(1.0, 25.0, 5.0, 0.1));   // Position focused
+    population.push_back(Chromosome(1.0, 5.0, 20.0, 0.1));   // King safety focused
     
-    // Fill rest with random
+    // Fill rest with random (material always 1.0)
     for (int i = 4; i < populationSize; i++) {
         population.push_back(Chromosome(
-            matDist(gen),
+            1.0,  // Material weight always 1.0
             posDist(gen),
             ksDist(gen),
             psDist(gen)

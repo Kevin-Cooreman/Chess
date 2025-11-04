@@ -32,6 +32,7 @@ void ChessGame::startNewGame() {
     halfmoveClock = 0;
     fullmoveNumber = 1;
     positionHistory.clear();
+    fenNeedsUpdate = false;  // Will be set by updateFEN()
     updateFEN();
     recordPosition();  // Record starting position
 }
@@ -308,8 +309,8 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     // Execute the move
     makeMove(move);
     
-    // Regenerate FEN string to reflect the new board state
-    currentFEN = generateFEN();
+    // Mark FEN as needing update (lazy evaluation - only regenerate when requested)
+    fenNeedsUpdate = true;
     
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
@@ -628,14 +629,24 @@ string ChessGame::generateFEN() const {
     return fen;
 }
 
+// Lazy FEN generation - only regenerate when needed
+string ChessGame::getCurrentFEN() const {
+    if (fenNeedsUpdate) {
+        currentFEN = generateFEN();
+        fenNeedsUpdate = false;
+    }
+    return currentFEN;
+}
+
 void ChessGame::updateFEN() {
     currentFEN = generateFEN();
+    fenNeedsUpdate = false;
 }
 
 string ChessGame::getPositionKey() const {
     // Get FEN without halfmove clock and fullmove number
     // Only the position, active color, castling rights, and en passant matter for repetition
-    string fen = currentFEN;
+    string fen = getCurrentFEN();  // Use lazy getter
     
     // Find the last two spaces (before halfmove clock and fullmove number)
     size_t lastSpace = fen.rfind(' ');
@@ -852,6 +863,7 @@ void ChessGame::undoMove() {
     halfmoveClock = info.halfmoveClockBefore;
     fullmoveNumber = info.fullmoveNumberBefore;
     currentFEN = info.fenBefore;
+    fenNeedsUpdate = false;  // FEN is now current (restored from undo)
     
     // Undo the move on the board
     Move& move = info.move;

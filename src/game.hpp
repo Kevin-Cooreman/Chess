@@ -32,7 +32,8 @@ private:
     vector<Move> gameHistory;
     
     // FEN tracking
-    string currentFEN;
+    mutable string currentFEN;  // Mutable so getCurrentFEN() can update it
+    mutable bool fenNeedsUpdate;  // Flag to track if FEN is stale
     int halfmoveClock;  // Moves since last capture or pawn move (for 50-move rule)
     int fullmoveNumber; // Increments after black's move
     
@@ -83,7 +84,7 @@ public:
     
     // FEN handling
     string generateFEN() const;
-    string getCurrentFEN() const { return currentFEN; }
+    string getCurrentFEN() const;  // Lazy evaluation - regenerates if needed
     string getPositionKey() const;  // Get FEN without move counters for repetition tracking
     void updateFEN();
     void recordPosition();  // Track position for repetition detection

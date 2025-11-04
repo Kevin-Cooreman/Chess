@@ -27,40 +27,37 @@ double Evaluation::evaluate(const ChessGame& game) const {
     return evaluation;
 }
 
-// Count material value
+// Count material value - optimized to use board directly instead of FEN
 double Evaluation::materialCount(const ChessGame& game) const {
     double count = 0;
-    string fen = game.getCurrentFEN();
-
-    // Parse only the piece placement part (before the first space)
-    size_t spacePos = fen.find(' ');
-    string piecePlacement = fen.substr(0, spacePos);
-
-    // Count piece values from FEN
-    for(char c : piecePlacement) {
-        if(c == '/' || isdigit(c)) {
-            continue; // Skip rank separators and empty squares
-        }
-        
-        // Determine piece value
-        double pieceValue = 0;
-        char piece = tolower(c);
-        
-        switch(piece) {
-            case 'p': pieceValue = PAWN_VALUE; break;
-            case 'n': pieceValue = KNIGHT_VALUE; break;
-            case 'b': pieceValue = BISHOP_VALUE; break;
-            case 'r': pieceValue = ROOK_VALUE; break;
-            case 'q': pieceValue = QUEEN_VALUE; break;
-            case 'k': pieceValue = 0; break; // King has no material value
-            default: continue;
-        }
-        
-        // Add for white pieces (uppercase), subtract for black pieces (lowercase)
-        if(isupper(c)) {
-            count += pieceValue;
-        } else {
-            count -= pieceValue;
+    
+    // Iterate through the board array directly (much faster than parsing FEN)
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (piece == EMPTY) continue;
+            
+            // Get piece type (bottom 3 bits)
+            int pieceType = piece & 0b0111;
+            bool isWhitePiece = isWhite(piece);
+            
+            double pieceValue = 0;
+            switch(pieceType) {
+                case 0b0001: pieceValue = PAWN_VALUE; break;    // Pawn
+                case 0b0011: pieceValue = KNIGHT_VALUE; break;  // Knight
+                case 0b0100: pieceValue = BISHOP_VALUE; break;  // Bishop
+                case 0b0010: pieceValue = ROOK_VALUE; break;    // Rook
+                case 0b0101: pieceValue = QUEEN_VALUE; break;   // Queen
+                case 0b0110: pieceValue = 0; break;             // King (no material value)
+                default: continue;
+            }
+            
+            // Add for white pieces, subtract for black pieces
+            if (isWhitePiece) {
+                count += pieceValue;
+            } else {
+                count -= pieceValue;
+            }
         }
     }
 
@@ -136,96 +133,71 @@ static const int kingMiddlegamePST[8][8] = {
     {-15,  36,  12, -54,   8, -28,  24,  14}
 };
 
-// Evaluate piece positioning using piece-square tables
+// Evaluate piece positioning using piece-square tables - optimized to use board directly
 double Evaluation::position(const ChessGame& game) const {
     double positionValue = 0.0;
-    string fen = game.getCurrentFEN();
-
-    size_t spacePos = fen.find(' ');
-    string piecePlacement = fen.substr(0, spacePos);
-
-    int row = 0, col = 0;
-
-    for(char c : piecePlacement) {
-        if(c == '/') {
-            row++;      // Move to next rank
-            col = 0;    // Reset to file 'a'
-            continue;
+    
+    // Iterate through board array directly (much faster than parsing FEN)
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (piece == EMPTY) continue;
+            
+            int pieceType = piece & 0b0111;
+            bool isWhitePiece = isWhite(piece);
+            
+            // For black pieces, flip the row to get correct PST index
+            int pstRow = isWhitePiece ? row : (7 - row);
+            
+            double pieceValue = 0;
+            // Use piece-square tables (values are in centipawns, so divide by 100 to match pawn=1 scale)
+            switch(pieceType) {
+                case 0b0001: pieceValue = pawnPST[pstRow][col] / 100.0; break;      // Pawn
+                case 0b0011: pieceValue = knightPST[pstRow][col] / 100.0; break;    // Knight
+                case 0b0100: pieceValue = bishopPST[pstRow][col] / 100.0; break;    // Bishop
+                case 0b0010: pieceValue = rookPST[pstRow][col] / 100.0; break;      // Rook
+                case 0b0101: pieceValue = queenPST[pstRow][col] / 100.0; break;     // Queen
+                case 0b0110: pieceValue = kingMiddlegamePST[pstRow][col] / 100.0; break; // King
+                default: continue;
+            }
+            
+            // Add for white pieces, subtract for black pieces
+            if (isWhitePiece) {
+                positionValue += pieceValue;
+            } else {
+                positionValue -= pieceValue;
+            }
         }
-        else if(isdigit(c)) {
-            col += (c - '0');  // Skip empty squares
-            continue;
-        }
-        
-        // Now we have a piece at position [row][col]
-        double pieceValue = 0;
-        char piece = tolower(c);
-        bool isWhite = isupper(c);
-        
-        // For black pieces, flip the row to get correct PST index
-        int pstRow = isWhite ? row : (7 - row);
-        
-        // Use piece-square tables (values are in centipawns, so divide by 100 to match pawn=1 scale)
-        switch(piece) {
-            case 'p': pieceValue = pawnPST[pstRow][col] / 100.0; break;
-            case 'n': pieceValue = knightPST[pstRow][col] / 100.0; break;
-            case 'b': pieceValue = bishopPST[pstRow][col] / 100.0; break;
-            case 'r': pieceValue = rookPST[pstRow][col] / 100.0; break;
-            case 'q': pieceValue = queenPST[pstRow][col] / 100.0; break;
-            case 'k': pieceValue = kingMiddlegamePST[pstRow][col] / 100.0; break;
-            default: 
-                col++;
-                continue;
-        }
-        
-        // Add for white pieces, subtract for black pieces
-        if(isWhite) {
-            positionValue += pieceValue;
-        } else {
-            positionValue -= pieceValue;
-        }
-        
-        col++;  // Move to next column
     }
 
     return positionValue;
 }
 
-// king safety evaluation - simplified version
+// king safety evaluation - simplified version, optimized to use board directly
 double Evaluation::kingsafety(const ChessGame& game) const {
     double kingSafetyValue = 0.0;
-    string fen = game.getCurrentFEN();
-
-    size_t spacePos = fen.find(' ');
-    string piecePlacement = fen.substr(0, spacePos);
-
-    int row = 0, col = 0;
-
-    for(char c : piecePlacement) {
-        if(c == '/') {
-            row++;      // Move to next rank
-            col = 0;    // Reset to file 'a'
-            continue;
-        }
-        else if(isdigit(c)) {
-            col += (c - '0');  // Skip empty squares
-            continue;
-        }
-        
-        char piece = tolower(c);
-
-        if(piece == 'k'){
-            bool isWhite = isupper(c);
+    
+    // Find kings by iterating through board
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (piece == EMPTY) continue;
+            
+            int pieceType = piece & 0b0111;
+            if (pieceType != 0b0110) continue;  // Only process kings
+            
+            bool isWhitePiece = isWhite(piece);
             double safetyPenalty = 0.0;
             
             // Kings are safer on back rank and in corners
-            if (isWhite) {
+            if (isWhitePiece) {
                 // White king: safer on row 7 (back rank)
                 safetyPenalty = (7 - row) * 0.02;  // Penalty for advancing
                 // Bonus for being castled (on g or c file on back rank)
                 if (row == 7 && (col == 6 || col == 2)) {
                     safetyPenalty -= 0.02;
                 }
+                kingSafetyValue -= safetyPenalty;
             } else {
                 // Black king: safer on row 0 (back rank)
                 safetyPenalty = row * 0.02;  // Penalty for advancing
@@ -233,49 +205,29 @@ double Evaluation::kingsafety(const ChessGame& game) const {
                 if (row == 0 && (col == 6 || col == 2)) {
                     safetyPenalty -= 0.02;
                 }
-            }
-            
-            // More exposure = bad for that side
-            if(isWhite) {
-                kingSafetyValue -= safetyPenalty;
-            } else {
                 kingSafetyValue += safetyPenalty;
             }
         }
-        
-        col++;  // Move to next column
     }
 
     return kingSafetyValue;
 }
 
-// Placeholder for pawn structure evaluation
+// Pawn structure evaluation - optimized to use board directly
 double Evaluation::pawnStructure(const ChessGame& game) const {
     double pawnStructureValue = 0.0;
-    string fen = game.getCurrentFEN();
-
-    size_t spacePos = fen.find(' ');
-    string piecePlacement = fen.substr(0, spacePos);
-
-    int row = 0, col = 0;
-
-    for(char c : piecePlacement) {
-        if(c == '/') {
-            row++;      // Move to next rank
-            col = 0;    // Reset to file 'a'
-            continue;
-        }
-        else if(isdigit(c)) {
-            col += (c - '0');  // Skip empty squares
-            continue;
-        }
-        
-        // Now we have a piece at position [row][col]
-        char piece = tolower(c);
-
-        if(piece == 'p'){
+    
+    // Iterate through board to find pawns
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (piece == EMPTY) continue;
+            
+            int pieceType = piece & 0b0111;
+            if (pieceType != 0b0001) continue;  // Only process pawns
+            
             double pieceValue = 0.0;
-            bool isWhitePawn = isupper(c);
+            bool isWhitePawn = isWhite(piece);
             
             // Check for passed pawn (no enemy pawns ahead in file or adjacent files)
             vector<Move> aheadMoves = isWhitePawn ? generateUpMoves(row, col) : generateDownMoves(row, col);
@@ -348,15 +300,13 @@ double Evaluation::pawnStructure(const ChessGame& game) const {
                 }
             }
             
-            // Add for white pieces (uppercase), subtract for black pieces (lowercase)
-            if(isupper(c)) {
+            // Add for white pawns, subtract for black pawns
+            if(isWhitePawn) {
                 pawnStructureValue += pieceValue;
             } else {
                 pawnStructureValue -= pieceValue;
             }
         }
-        
-        col++;  // Move to next column
     }
 
     return pawnStructureValue;

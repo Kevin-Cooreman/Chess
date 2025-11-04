@@ -12,8 +12,6 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     
     vector<Move> legalMoves = game.getLegalMoves();
     
-    cout << "DEBUG: Found " << legalMoves.size() << " legal moves at depth " << depth << endl;
-    
     if (legalMoves.empty()) {
         return Move(-1, -1, -1, -1); // No legal moves
     }
@@ -27,17 +25,8 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         
         if (!leavesKingInCheck) {
             validatedMoves.push_back(move);
-        } else {
-            char startFile = 'a' + move.startColumn;
-            char targetFile = 'a' + move.targetColumn;
-            int startRank = 8 - move.startRow;
-            int targetRank = 8 - move.targetRow;
-            cout << "DEBUG: ILLEGAL MOVE (leaves king in check): " 
-                 << startFile << startRank << targetFile << targetRank << endl;
         }
     }
-    
-    cout << "DEBUG: After validation: " << validatedMoves.size() << " legal moves" << endl;
     
     if (validatedMoves.empty()) {
         return Move(-1, -1, -1, -1); // No valid moves
@@ -53,28 +42,15 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
         for (const Move& move : validatedMoves) {
             game.makeMoveForEngine(move);
             
-            // Debug: Print FEN after move
-            char startFile = 'a' + move.startColumn;
-            char targetFile = 'a' + move.targetColumn;
-            int startRank = 8 - move.startRow;
-            int targetRank = 8 - move.targetRow;
-            cout << "DEBUG: Evaluating " << startFile << startRank << targetFile << targetRank 
-                 << " FEN: " << game.getCurrentFEN().substr(0, 40) << "..." << endl;
-            
             double eval = alphabeta(game, depth - 1, -numeric_limits<double>::infinity(), 
                                    numeric_limits<double>::infinity(), false);
             game.undoMove();
-            
-            // Debug output
-            cout << "Move " << startFile << startRank << targetFile << targetRank 
-                 << " eval: " << eval << endl;
-            
+
             if (eval > bestEval) {
                 bestEval = eval;
                 bestMove = move;
             }
         }
-        cout << "Best move eval: " << bestEval << endl;
     } else {
         // Black wants to minimize evaluation
         double bestEval = numeric_limits<double>::infinity();
@@ -85,20 +61,11 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
                                    numeric_limits<double>::infinity(), true);
             game.undoMove();
             
-            // Debug output
-            char startFile = 'a' + move.startColumn;
-            char targetFile = 'a' + move.targetColumn;
-            int startRank = 8 - move.startRow;
-            int targetRank = 8 - move.targetRow;
-            cout << "Move " << startFile << startRank << targetFile << targetRank 
-                 << " eval: " << eval << endl;
-            
             if (eval < bestEval) {
                 bestEval = eval;
                 bestMove = move;
             }
         }
-        cout << "Best move eval: " << bestEval << endl;
     }
     
     // Clear undo stack after search is complete
@@ -107,68 +74,85 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     return bestMove;
 }
 
-// Order moves: checkmates first, then captures, then checks
-void Engine::orderMoves(vector<Move>& moves, ChessGame& game) {
-    struct MoveInfo { Move mv; int priority; int captureValue; };
-    vector<MoveInfo> infos;
-
+// Fast move ordering using MVV-LVA (Most Valuable Victim - Least Valuable Attacker)
+// No make/undo moves - just looks at the board state
+void Engine::fastOrderMoves(vector<Move>& moves) {
+    struct MoveScore { Move move; int score; };
+    vector<MoveScore> scoredMoves;
+    
     for (const Move& move : moves) {
+        int score = 0;
+        
         // Detect capture by inspecting the board square at the target
         int capturedPiece = EMPTY;
         if (move.moveType == EN_PASSANT) {
-            // en passant captures the pawn on the start row at target column
             capturedPiece = board[move.startRow][move.targetColumn];
         } else {
             capturedPiece = board[move.targetRow][move.targetColumn];
         }
-
-        bool isCapture = !isEmpty(capturedPiece);
-        int captureVal = 0;
-        if (isCapture) {
-            int pieceType = capturedPiece & 0b0111;
-            switch(pieceType) {
-                case 0b0001: captureVal = 1; break; // pawn
-                case 0b0011: captureVal = 3; break; // knight
-                case 0b0100: captureVal = 3; break; // bishop
-                case 0b0010: captureVal = 5; break; // rook
-                case 0b0101: captureVal = 9; break; // queen
-                default: captureVal = 0; break;
+        
+        int movingPiece = board[move.startRow][move.startColumn];
+        
+        if (!isEmpty(capturedPiece)) {
+            // MVV-LVA: (Victim value * 10) - Attacker value
+            // This prioritizes capturing valuable pieces with less valuable pieces
+            int victimValue = 0;
+            int attackerValue = 0;
+            
+            int victimType = capturedPiece & 0b0111;
+            int attackerType = movingPiece & 0b0111;
+            
+            switch(victimType) {
+                case 0b0001: victimValue = 1; break;  // pawn
+                case 0b0011: victimValue = 3; break;  // knight
+                case 0b0100: victimValue = 3; break;  // bishop
+                case 0b0010: victimValue = 5; break;  // rook
+                case 0b0101: victimValue = 9; break;  // queen
+                default: victimValue = 0; break;
             }
+            
+            switch(attackerType) {
+                case 0b0001: attackerValue = 1; break;  // pawn
+                case 0b0011: attackerValue = 3; break;  // knight
+                case 0b0100: attackerValue = 3; break;  // bishop
+                case 0b0010: attackerValue = 5; break;  // rook
+                case 0b0101: attackerValue = 9; break;  // queen
+                case 0b0110: attackerValue = 10; break; // king (discourage king captures)
+                default: attackerValue = 0; break;
+            }
+            
+            // Captures: higher score for better MVV-LVA
+            score = 1000 + (victimValue * 10) - attackerValue;
         }
-
-        // Check for resulting check or mate by making the move temporarily
-        bool givesCheck = false;
-        bool givesMate = false;
-        game.makeMoveForEngine(move);
-        if (game.isInCheckmate()) givesMate = true;
-        else if (game.isInCheck()) givesCheck = true;
-        game.undoMove();
-
-        int priority = 0;
-        if (givesMate) priority = 3000;        // highest priority
-        else if (isCapture) priority = 2000 + captureVal; // captures next, prefer higher-value targets
-        else if (givesCheck) priority = 1000; // checks last
-        else priority = 0;
-
-        infos.push_back({move, priority, captureVal});
+        // Promotions are also valuable
+        else if (move.moveType == PAWN_PROMOTION) {
+            score = 900;  // High priority
+        }
+        // Quiet moves get low priority
+        else {
+            score = 0;
+        }
+        
+        scoredMoves.push_back({move, score});
     }
-
-    // Sort descending by priority then by capture value
-    sort(infos.begin(), infos.end(), [](const MoveInfo& a, const MoveInfo& b) {
-        if (a.priority != b.priority) return a.priority > b.priority;
-        return a.captureValue > b.captureValue;
+    
+    // Sort descending by score
+    sort(scoredMoves.begin(), scoredMoves.end(), [](const MoveScore& a, const MoveScore& b) {
+        return a.score > b.score;
     });
-
+    
     // Copy back
     moves.clear();
-    for (const auto& mi : infos) moves.push_back(mi.mv);
+    for (const auto& ms : scoredMoves) {
+        moves.push_back(ms.move);
+    }
 }
 
-// Alpha-beta pruning (optimized minimax) - implement later
+// Alpha-beta pruning (optimized minimax)
 double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing) {
     nodesSearched++;  // Count this node
     
-    // Check transposition table
+    // Check transposition table BEFORE generating moves (expensive operation)
     string posKey = game.getPositionKey();
     auto it = transpositionTable.find(posKey);
     if (it != transpositionTable.end() && it->second.depth >= depth) {
@@ -200,8 +184,9 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         return eval;
     }
     
-    // Order moves for better alpha-beta pruning
-    orderMoves(legalmoves, game);
+    // Simple move ordering: captures first (MVV-LVA), then quiet moves
+    // Much faster than the complex orderMoves() which makes/undoes moves
+    fastOrderMoves(legalmoves);
     
     if(isMaximizing){
         //white to move - maximise eval

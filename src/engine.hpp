@@ -21,7 +21,7 @@ private:
     std::unordered_map<std::string, TTEntry> transpositionTable;
 
     // Helper functions
-    void orderMoves(vector<Move>& moves, ChessGame& game);
+    void fastOrderMoves(vector<Move>& moves);  // Fast MVV-LVA ordering without making moves
     
     // Search algorithm
     double alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing);
