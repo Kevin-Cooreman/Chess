@@ -8,6 +8,7 @@
 #include <string>
 #include <limits>
 #include <unordered_map>
+#include <cstdint>
 
 // Transposition table entry
 struct TTEntry {
@@ -18,7 +19,7 @@ struct TTEntry {
 class Engine {
 private:
     Evaluation evaluator;
-    std::unordered_map<std::string, TTEntry> transpositionTable;
+    std::unordered_map<uint64_t, TTEntry> transpositionTable;  // Changed from string to uint64_t
     Move pvMove = Move(-1, -1, -1, -1);  // Initialize to invalid move
 
     // Helper functions

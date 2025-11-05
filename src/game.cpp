@@ -3,10 +3,19 @@
 #include <sstream>
 #include <algorithm>
 #include <cctype>
+#include <random>
 
 using namespace std;
 
+// Initialize static Zobrist variables
+uint64_t ChessGame::zobristTable[64][12];
+uint64_t ChessGame::zobristCastling[16];
+uint64_t ChessGame::zobristEnPassant[8];
+uint64_t ChessGame::zobristSideToMove;
+bool ChessGame::zobristInitialized = false;
+
 ChessGame::ChessGame() {
+    initZobrist();  // Initialize Zobrist tables on first construction
     startNewGame();
 }
 
@@ -35,6 +44,9 @@ void ChessGame::startNewGame() {
     fenNeedsUpdate = false;  // Will be set by updateFEN()
     updateFEN();
     recordPosition();  // Record starting position
+    
+    // Compute initial Zobrist hash
+    zobristHash = computeZobristHash();
 }
 
 void ChessGame::displayBoard() const {
@@ -301,13 +313,115 @@ void ChessGame::makeMoveForEngine(const Move& move) {
         enPassantTargetCol,                // enPassantTargetColBefore
         halfmoveClock,                     // halfmoveClockBefore
         fullmoveNumber,                    // fullmoveNumberBefore
-        currentFEN                         // fenBefore
+        currentFEN,                        // fenBefore
+        zobristHash                        // zobristHashBefore
     };
     
     undoStack.push_back(info);
     
+    // === ZOBRIST HASH UPDATE: Remove old state ===
+    
+    // Helper function to convert piece to zobrist index
+    auto pieceToZobristIndex = [](int piece) -> int {
+        bool isWhitePiece = isWhite(piece);
+        int pieceValue = piece & 0b0111;  // Get piece type (lower 3 bits)
+        int typeIndex;
+        switch (pieceValue) {
+            case 0b001: typeIndex = 0; break;  // PAWN
+            case 0b011: typeIndex = 1; break;  // KNIGHT
+            case 0b100: typeIndex = 2; break;  // BISHOP
+            case 0b010: typeIndex = 3; break;  // ROOK
+            case 0b101: typeIndex = 4; break;  // QUEEN
+            case 0b110: typeIndex = 5; break;  // KING
+            default:     typeIndex = 0; break;
+        }
+        return isWhitePiece ? typeIndex : (typeIndex + 6);
+    };
+    
+    // Remove old castling rights
+    int oldCastlingIndex = 0;
+    if (!whiteKingMoved) {
+        if (!whiteKingsideRookMoved) oldCastlingIndex |= 1;
+        if (!whiteQueensideRookMoved) oldCastlingIndex |= 2;
+    }
+    if (!blackKingMoved) {
+        if (!blackKingsideRookMoved) oldCastlingIndex |= 4;
+        if (!blackQueensideRookMoved) oldCastlingIndex |= 8;
+    }
+    zobristHash ^= zobristCastling[oldCastlingIndex];
+    
+    // Remove old en passant
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
+    
+    // Remove piece from source square
+    int movingPiece = board[move.startRow][move.startColumn];
+    int sourceSquare = move.startRow * 8 + move.startColumn;
+    zobristHash ^= zobristTable[sourceSquare][pieceToZobristIndex(movingPiece)];
+    
+    // Remove captured piece if exists
+    if (capturedPiece != EMPTY) {
+        int captureSquare;
+        if (move.moveType == EN_PASSANT) {
+            captureSquare = move.startRow * 8 + move.targetColumn;
+        } else {
+            captureSquare = move.targetRow * 8 + move.targetColumn;
+        }
+        zobristHash ^= zobristTable[captureSquare][pieceToZobristIndex(capturedPiece)];
+    }
+    
+    // Handle castling rook movement (BEFORE makeMove so we can read original rook position)
+    if (move.moveType == CASTLING_KINGSIDE) {
+        int rookSourceSquare = move.startRow * 8 + 7;
+        int rook = board[move.startRow][7];  // Read rook from original position
+        zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
+    } else if (move.moveType == CASTLING_QUEENSIDE) {
+        int rookSourceSquare = move.startRow * 8 + 0;
+        int rook = board[move.startRow][0];  // Read rook from original position
+        zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
+    }
+    
     // Execute the move
     makeMove(move);
+    
+    // === ZOBRIST HASH UPDATE: Add new state ===
+    
+    // Add piece to destination square (handle promotion)
+    int destSquare = move.targetRow * 8 + move.targetColumn;
+    int finalPiece = board[move.targetRow][move.targetColumn];
+    zobristHash ^= zobristTable[destSquare][pieceToZobristIndex(finalPiece)];
+    
+    // Add castling rook to new position (AFTER makeMove so rook is in new position)
+    if (move.moveType == CASTLING_KINGSIDE) {
+        int rookDestSquare = move.startRow * 8 + 5;
+        int rook = board[move.startRow][5];  // Read rook from new position
+        zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
+    } else if (move.moveType == CASTLING_QUEENSIDE) {
+        int rookDestSquare = move.startRow * 8 + 3;
+        int rook = board[move.startRow][3];  // Read rook from new position
+        zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
+    }
+    
+    // Add new castling rights
+    int newCastlingIndex = 0;
+    if (!whiteKingMoved) {
+        if (!whiteKingsideRookMoved) newCastlingIndex |= 1;
+        if (!whiteQueensideRookMoved) newCastlingIndex |= 2;
+    }
+    if (!blackKingMoved) {
+        if (!blackKingsideRookMoved) newCastlingIndex |= 4;
+        if (!blackQueensideRookMoved) newCastlingIndex |= 8;
+    }
+    zobristHash ^= zobristCastling[newCastlingIndex];
+    
+    // Add new en passant
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
+    
+    // Toggle side to move
+    zobristHash ^= zobristSideToMove;
     
     // Mark FEN as needing update (lazy evaluation - only regenerate when requested)
     fenNeedsUpdate = true;
@@ -734,6 +848,9 @@ void ChessGame::loadFEN(const string& fen) {
     // Update FEN and record position
     updateFEN();
     recordPosition();
+    
+    // Recompute zobrist hash from new position
+    zobristHash = computeZobristHash();
 }
 
 bool ChessGame::isDrawByRepetition() const {
@@ -865,6 +982,9 @@ void ChessGame::undoMove() {
     currentFEN = info.fenBefore;
     fenNeedsUpdate = false;  // FEN is now current (restored from undo)
     
+    // Restore zobrist hash (much faster than recalculating)
+    zobristHash = info.zobristHashBefore;
+    
     // Undo the move on the board
     Move& move = info.move;
     int movingPiece = board[move.targetRow][move.targetColumn];
@@ -933,8 +1053,20 @@ void ChessGame::clearUndoStack() {
 
 // Make a null move (pass turn) for null move pruning
 void ChessGame::makeNullMove() {
+    // Save old en passant for undo
+    nullMoveOldEnPassantRow = enPassantTargetRow;
+    nullMoveOldEnPassantCol = enPassantTargetCol;
+    
+    // Remove old en passant from hash
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
+    
     // Simply switch the turn - no pieces move
     isWhiteTurn = !isWhiteTurn;
+    
+    // Toggle side to move in hash
+    zobristHash ^= zobristSideToMove;
     
     // Reset en passant (can't en passant after null move)
     enPassantTargetRow = -1;
@@ -946,12 +1078,113 @@ void ChessGame::makeNullMove() {
 
 // Undo a null move
 void ChessGame::undoNullMove() {
-    // Just switch turn back
+    // Switch turn back
     isWhiteTurn = !isWhiteTurn;
     
-    // Note: We don't restore en passant or other state because null move
-    // pruning is only used when we can cutoff, so we won't continue searching
-    // this branch anyway
+    // Toggle side to move back in hash
+    zobristHash ^= zobristSideToMove;
+    
+    // Restore en passant state
+    enPassantTargetRow = nullMoveOldEnPassantRow;
+    enPassantTargetCol = nullMoveOldEnPassantCol;
+    
+    // Add restored en passant back to hash
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
     
     fenNeedsUpdate = true;
+}// Zobrist hashing functions for ChessGame
+// These are added to the end of game.cpp
+
+// Initialize Zobrist random number tables
+void ChessGame::initZobrist() {
+    if (zobristInitialized) return;  // Only initialize once
+    
+    random_device rd;
+    mt19937_64 gen(rd());
+    uniform_int_distribution<uint64_t> dist;
+    
+    // Generate random numbers for each piece on each square
+    // Piece encoding: 0-5 = white pieces (pawn, knight, bishop, rook, queen, king)
+    //                 6-11 = black pieces (pawn, knight, bishop, rook, queen, king)
+    for (int square = 0; square < 64; square++) {
+        for (int piece = 0; piece < 12; piece++) {
+            zobristTable[square][piece] = dist(gen);
+        }
+    }
+    
+    // Generate random numbers for castling rights (16 combinations: 2^4)
+    for (int i = 0; i < 16; i++) {
+        zobristCastling[i] = dist(gen);
+    }
+    
+    // Generate random numbers for en passant file (8 files: a-h)
+    for (int i = 0; i < 8; i++) {
+        zobristEnPassant[i] = dist(gen);
+    }
+    
+    // Generate random number for side to move
+    zobristSideToMove = dist(gen);
+    
+    zobristInitialized = true;
+}
+
+// Compute Zobrist hash from current board state
+uint64_t ChessGame::computeZobristHash() const {
+    uint64_t hash = 0;
+    
+    // XOR all pieces on the board
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (piece != EMPTY) {
+                // Convert board piece encoding to zobrist index (0-11)
+                bool isWhitePiece = isWhite(piece);
+                int pieceValue = piece & 0b0111;  // Get piece type (lower 3 bits)
+                
+                // Map piece type to index 0-5
+                int typeIndex;
+                switch (pieceValue) {
+                    case 0b001: typeIndex = 0; break;  // PAWN
+                    case 0b011: typeIndex = 1; break;  // KNIGHT
+                    case 0b100: typeIndex = 2; break;  // BISHOP
+                    case 0b010: typeIndex = 3; break;  // ROOK
+                    case 0b101: typeIndex = 4; break;  // QUEEN
+                    case 0b110: typeIndex = 5; break;  // KING
+                    default:     typeIndex = 0; break;
+                }
+                
+                // White pieces: 0-5, Black pieces: 6-11
+                int zobristIndex = isWhitePiece ? typeIndex : (typeIndex + 6);
+                int square = row * 8 + col;
+                
+                hash ^= zobristTable[square][zobristIndex];
+            }
+        }
+    }
+    
+    // XOR castling rights
+    int castlingIndex = 0;
+    if (!whiteKingMoved) {
+        if (!whiteKingsideRookMoved) castlingIndex |= 1;   // White kingside
+        if (!whiteQueensideRookMoved) castlingIndex |= 2;  // White queenside
+    }
+    if (!blackKingMoved) {
+        if (!blackKingsideRookMoved) castlingIndex |= 4;   // Black kingside
+        if (!blackQueensideRookMoved) castlingIndex |= 8;  // Black queenside
+    }
+    hash ^= zobristCastling[castlingIndex];
+    
+    // XOR en passant file if exists
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        hash ^= zobristEnPassant[enPassantTargetCol];
+    }
+    
+    // XOR side to move (only if black to move)
+    if (!isWhiteTurn) {
+        hash ^= zobristSideToMove;
+    }
+    
+    return hash;
 }

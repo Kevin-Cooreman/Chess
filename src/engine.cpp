@@ -71,11 +71,21 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
             double bestEval = -numeric_limits<double>::infinity();
             
             for (const Move& move : validatedMoves) {
+                uint64_t hashBefore = game.getZobristHash();
                 game.makeMoveForEngine(move);
                 
                 double eval = alphabeta(game, currentDepth - 1, -numeric_limits<double>::infinity(), 
                                        numeric_limits<double>::infinity(), false);
                 game.undoMove();
+                uint64_t hashAfter = game.getZobristHash();
+                
+                // Verify hash is restored correctly
+                if (hashBefore != hashAfter) {
+                    cout << "ERROR: Hash mismatch! Before: " << hashBefore 
+                         << " After: " << hashAfter << endl;
+                    cout << "Recomputed: " << game.computeZobristHash() << endl;
+                    exit(1);
+                }
 
                 if (eval > bestEval) {
                     bestEval = eval;
@@ -87,10 +97,18 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
             double bestEval = numeric_limits<double>::infinity();
             
             for (const Move& move : validatedMoves) {
+                uint64_t hashBefore = game.getZobristHash();
                 game.makeMoveForEngine(move);
                 double eval = alphabeta(game, currentDepth - 1, -numeric_limits<double>::infinity(), 
                                        numeric_limits<double>::infinity(), true);
                 game.undoMove();
+                uint64_t hashAfter = game.getZobristHash();
+                
+                // Verify hash is restored correctly
+                if (hashBefore != hashAfter) {
+                    cout << "WARNING: Hash mismatch! Before: " << hashBefore 
+                         << " After: " << hashAfter << endl;
+                }
                 
                 if (eval < bestEval) {
                     bestEval = eval;
@@ -105,6 +123,22 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     
     // Clear undo stack after search is complete
     game.clearUndoStack();
+    
+    // Print profiling results (commented out for cleaner output)
+    // cout << "\n=== PROFILING RESULTS ===" << endl;
+    // cout << "TT Lookups: " << ttLookupCalls << " calls, " 
+    //      << (ttLookupTime / 1000.0) << " ms (" 
+    //      << (ttLookupTime / (double)ttLookupCalls / 1000.0) << " ms avg)" << endl;
+    // cout << "Evaluations: " << evalCalls << " calls, " 
+    //      << (evalTime / 1000.0) << " ms (" 
+    //      << (evalTime / (double)evalCalls / 1000.0) << " ms avg)" << endl;
+    // cout << "Move Generation: " << moveGenCalls << " calls, " 
+    //      << (moveGenTime / 1000.0) << " ms (" 
+    //      << (moveGenTime / (double)moveGenCalls / 1000.0) << " ms avg)" << endl;
+    // cout << "Total Profiled: " 
+    //      << ((ttLookupTime + evalTime + moveGenTime) / 1000.0) << " ms" << endl;
+    // cout << "TT Table Size: " << transpositionTable.size() << " unique positions" << endl;
+    // cout << "=========================" << endl;
     
     return bestMove;
 }
@@ -310,7 +344,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     
     // Check transposition table BEFORE generating moves (expensive operation)
     auto ttStart = high_resolution_clock::now();
-    string posKey = game.getPositionKey();
+    uint64_t posKey = game.getZobristHash();
     auto it = transpositionTable.find(posKey);
     auto ttEnd = high_resolution_clock::now();
     ttLookupTime += duration_cast<microseconds>(ttEnd - ttStart).count();
@@ -341,6 +375,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         
         // Undo null move
         game.undoNullMove();
+
         
         // If null move causes beta cutoff, we can prune
         if (nullScore >= beta) {
@@ -413,6 +448,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         }
         
         // Store in transposition table
+        static int storeCountMax = 0;
         transpositionTable[posKey] = {maxEval, depth};
         return maxEval;
     } else {

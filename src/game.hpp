@@ -4,6 +4,7 @@
 #include <string>
 #include <vector>
 #include <map>
+#include <cstdint>
 
 using namespace std;
 
@@ -22,6 +23,7 @@ struct UndoInfo {
     int halfmoveClockBefore;
     int fullmoveNumberBefore;
     string fenBefore;
+    uint64_t zobristHashBefore;  // Store zobrist hash for fast undo
 };
 
 class ChessGame {
@@ -37,11 +39,26 @@ private:
     int halfmoveClock;  // Moves since last capture or pawn move (for 50-move rule)
     int fullmoveNumber; // Increments after black's move
     
+    // Zobrist hashing for fast position identification
+    uint64_t zobristHash;  // Current position hash
+    static uint64_t zobristTable[64][12];  // [square][piece type]
+    static uint64_t zobristCastling[16];   // [castling rights combination]
+    static uint64_t zobristEnPassant[8];   // [file 0-7]
+    static uint64_t zobristSideToMove;     // Toggle for black to move
+    static bool zobristInitialized;
+    
     // Position history for threefold repetition (position -> count)
     map<string, int> positionHistory;
     
     // Undo stack
     vector<UndoInfo> undoStack;
+    
+    // Null move undo info (simple single-level storage since null moves don't nest)
+    int nullMoveOldEnPassantRow;
+    int nullMoveOldEnPassantCol;
+    
+    // Zobrist hashing initialization
+    void initZobrist();
 
 public:
     ChessGame();
@@ -51,6 +68,10 @@ public:
     bool isGameOver() const { return gameOver; }
     string getGameResult() const { return gameResult; }
     bool isWhiteToMove() const { return isWhiteTurn; }
+    
+    // Zobrist hash functions (public for debugging)
+    uint64_t computeZobristHash() const;
+    uint64_t getZobristHash() const { return zobristHash; }
     
     // Move handling
     bool makePlayerMove(const string& moveStr);

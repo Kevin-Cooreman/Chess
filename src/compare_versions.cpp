@@ -4,10 +4,13 @@
 #include "engine_v1.hpp"
 #include "evaluation.hpp"
 #include "evaluation_v1.hpp"
+#include "board.hpp"
 #include <iostream>
 #include <string>
+#include <chrono>
 
 using namespace std;
+using namespace chrono;
 
 // Wrapper to use v1 evaluation with current Engine
 class EvalV1Wrapper : public Evaluation {
@@ -42,7 +45,14 @@ vector<string> testPositions = {
     "rnbqkb1r/pp3ppp/2p1pn2/3p4/2PP4/5NP1/PP2PP1P/RNBQKB1R w KQkq - 0 6", // King's Indian structure
 };
 
-string playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, int depth, const string& startingFEN) {
+struct GameResult {
+    string winner;        // "new", "v1", or "draw"
+    bool wasMateOrStalemate;  // true if game ended by checkmate/stalemate
+    double whiteMaterial;
+    double blackMaterial;
+};
+
+GameResult playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, int depth, const string& startingFEN) {
     ChessGame game;
     if (!startingFEN.empty()) {
         game.loadFEN(startingFEN);
@@ -74,23 +84,60 @@ string playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, int 
         moveCount++;
     }
     
-    if (game.isGameOver()) {
-        string result = game.getGameResult();
-        if (result.find("White wins") != string::npos) {
-            return eval1PlaysWhite ? "new" : "v1";
-        } else if (result.find("Black wins") != string::npos) {
-            return eval1PlaysWhite ? "v1" : "new";
+    // Calculate material count
+    double whiteMaterial = 0.0;
+    double blackMaterial = 0.0;
+    
+    for (int row = 0; row < 8; row++) {
+        for (int col = 0; col < 8; col++) {
+            int piece = board[row][col];
+            if (isEmpty(piece)) continue;
+            
+            double value = 0.0;
+            int pieceType = piece & 0b0111; // Extract piece type (lower 3 bits)
+            
+            // WHITE_PAWN = 0b0001, WHITE_ROOK = 0b0010, etc.
+            if (pieceType == 0b0001) value = 1.0;  // Pawn
+            else if (pieceType == 0b0010) value = 5.0;  // Rook
+            else if (pieceType == 0b0011) value = 3.0;  // Knight
+            else if (pieceType == 0b0100) value = 3.0;  // Bishop
+            else if (pieceType == 0b0101) value = 9.0;  // Queen
+            else if (pieceType == 0b0110) value = 0.0;  // King (don't count)
+            
+            if (isWhite(piece)) {
+                whiteMaterial += value;
+            } else {
+                blackMaterial += value;
+            }
         }
     }
     
-    return "draw";
+    if (game.isGameOver()) {
+        string result = game.getGameResult();
+        string winner = "draw";
+        if (result.find("White wins") != string::npos) {
+            winner = eval1PlaysWhite ? "new" : "v1";
+        } else if (result.find("Black wins") != string::npos) {
+            winner = eval1PlaysWhite ? "v1" : "new";
+        }
+        return {winner, true, whiteMaterial, blackMaterial};
+    }
+    
+    // Game hit move limit - use material count as tiebreaker
+    string winner = "draw";
+    if (whiteMaterial != blackMaterial) {
+        bool whiteWins = whiteMaterial > blackMaterial;
+        winner = (whiteWins == eval1PlaysWhite) ? "new" : "v1";
+    }
+    
+    return {winner, false, whiteMaterial, blackMaterial};
 }
 
 int main() {
     cout << "Version Comparison Tool\n";
     cout << "==============================\n";
     cout << "1. Compare NEW Evaluation vs V1 Evaluation (same engine)\n";
-    cout << "2. Compare NEW Engine vs V1 Engine (same evaluation)\n";
+    cout << "2. Compare NEW Engine vs V1 Engine (TIME LIMITED - most fair!)\n";
     cout << "3. Compare FULL NEW (engine+eval) vs FULL V1 (engine+eval)\n";
     cout << "\nSelect comparison type (1-3): ";
     
@@ -98,13 +145,19 @@ int main() {
     cin >> comparisonType;
     
     int numGames;
-    int depth;
+    int depth = 0;
+    int timePerMoveMs = 0;
     
     cout << "Number of games to play: ";
     cin >> numGames;
     
-    cout << "Search depth: ";
-    cin >> depth;
+    if (comparisonType == 2) {
+        cout << "Time per move in milliseconds (recommended 2000-5000): ";
+        cin >> timePerMoveMs;
+    } else {
+        cout << "Search depth: ";
+        cin >> depth;
+    }
     
     cout << "\n==============================\n";
     
@@ -128,25 +181,41 @@ int main() {
             cout << "(NEW plays " << (newPlaysWhite ? "White" : "Black") << ")... ";
             cout.flush();
             
-            string result = playGame(newEval, v1Eval, newPlaysWhite, depth, startingFEN);
+            GameResult result = playGame(newEval, v1Eval, newPlaysWhite, depth, startingFEN);
             
-            if (result == "new") {
+            if (result.winner == "new") {
                 newWins++;
-                cout << "NEW wins!\n";
-            } else if (result == "v1") {
+                cout << "NEW wins";
+                if (result.wasMateOrStalemate) {
+                    cout << " (checkmate/stalemate)!\n";
+                } else {
+                    cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                }
+            } else if (result.winner == "v1") {
                 v1Wins++;
-                cout << "V1 wins\n";
+                cout << "V1 wins";
+                if (result.wasMateOrStalemate) {
+                    cout << " (checkmate/stalemate)\n";
+                } else {
+                    cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                }
             } else {
                 draws++;
-                cout << "Draw\n";
+                cout << "Draw";
+                if (result.wasMateOrStalemate) {
+                    cout << " (stalemate)\n";
+                } else {
+                    cout << " (move limit, equal material: " << result.whiteMaterial << ")\n";
+                }
             }
         }
-    } 
+    }
     else if (comparisonType == 2) {
-        // Compare engines using current evaluation
-        cout << "Testing: NEW Engine vs V1 Engine\n";
+        // Compare engines using current evaluation with TIME LIMIT
+        cout << "Testing: NEW Engine vs V1 Engine (TIME LIMITED)\n";
         cout << "(Both using current Evaluation)\n";
-        cout << "(V1 Engine locked to depth 4 - maximum manageable)\n\n";
+        cout << "(Each engine gets " << timePerMoveMs << "ms per move)\n";
+        cout << "(Engines will naturally search to different depths based on speed)\n\n";
         
         Evaluation eval;
         
@@ -173,10 +242,36 @@ int main() {
                 bool isWhiteTurn = game.isWhiteToMove();
                 Move bestMove(-1, -1, -1, -1);
                 
+                auto startTime = chrono::high_resolution_clock::now();
+                
                 if ((isWhiteTurn && newPlaysWhite) || (!isWhiteTurn && !newPlaysWhite)) {
-                    bestMove = newEngine.getBestMove(game, depth);
+                    // NEW engine - iterative deepening with time limit
+                    Move currentBest(-1, -1, -1, -1);
+                    for (int d = 1; d <= 10; d++) {
+                        auto now = chrono::high_resolution_clock::now();
+                        auto elapsed = chrono::duration_cast<chrono::milliseconds>(now - startTime).count();
+                        if (elapsed >= timePerMoveMs) break;
+                        
+                        Move move = newEngine.getBestMove(game, d);
+                        if (move.startRow != -1) {
+                            currentBest = move;
+                        }
+                    }
+                    bestMove = currentBest;
                 } else {
-                    bestMove = v1Engine.getBestMove(game, 4);  // V1 always at depth 4
+                    // V1 engine - iterative deepening with time limit
+                    Move currentBest(-1, -1, -1, -1);
+                    for (int d = 1; d <= 10; d++) {
+                        auto now = chrono::high_resolution_clock::now();
+                        auto elapsed = chrono::duration_cast<chrono::milliseconds>(now - startTime).count();
+                        if (elapsed >= timePerMoveMs) break;
+                        
+                        Move move = v1Engine.getBestMove(game, d);
+                        if (move.startRow != -1) {
+                            currentBest = move;
+                        }
+                    }
+                    bestMove = currentBest;
                 }
                 
                 if (bestMove.startRow == -1) break;
@@ -185,25 +280,73 @@ int main() {
                 moveCount++;
             }
             
-            string result = "draw";
-            if (game.isGameOver()) {
-                string gameResult = game.getGameResult();
-                if (gameResult.find("White wins") != string::npos) {
-                    result = newPlaysWhite ? "new" : "v1";
-                } else if (gameResult.find("Black wins") != string::npos) {
-                    result = newPlaysWhite ? "v1" : "new";
+            // Calculate material
+            double whiteMaterial = 0.0;
+            double blackMaterial = 0.0;
+            
+            for (int row = 0; row < 8; row++) {
+                for (int col = 0; col < 8; col++) {
+                    int piece = board[row][col];
+                    if (isEmpty(piece)) continue;
+                    
+                    double value = 0.0;
+                    int pieceType = piece & 0b0111;
+                    
+                    if (pieceType == 0b0001) value = 1.0;
+                    else if (pieceType == 0b0010) value = 5.0;
+                    else if (pieceType == 0b0011) value = 3.0;
+                    else if (pieceType == 0b0100) value = 3.0;
+                    else if (pieceType == 0b0101) value = 9.0;
+                    
+                    if (isWhite(piece)) {
+                        whiteMaterial += value;
+                    } else {
+                        blackMaterial += value;
+                    }
                 }
             }
             
-            if (result == "new") {
+            string winner = "draw";
+            bool wasMate = false;
+            
+            if (game.isGameOver()) {
+                wasMate = true;
+                string gameResult = game.getGameResult();
+                if (gameResult.find("White wins") != string::npos) {
+                    winner = newPlaysWhite ? "new" : "v1";
+                } else if (gameResult.find("Black wins") != string::npos) {
+                    winner = newPlaysWhite ? "v1" : "new";
+                }
+            } else if (whiteMaterial != blackMaterial) {
+                // Game hit move limit - use material count as tiebreaker
+                bool whiteWins = whiteMaterial > blackMaterial;
+                winner = (whiteWins == newPlaysWhite) ? "new" : "v1";
+            }
+            
+            if (winner == "new") {
                 newWins++;
-                cout << "NEW wins!\n";
-            } else if (result == "v1") {
+                cout << "NEW wins";
+                if (wasMate) {
+                    cout << " (checkmate/stalemate)!\n";
+                } else {
+                    cout << " (material: " << whiteMaterial << " vs " << blackMaterial << ")\n";
+                }
+            } else if (winner == "v1") {
                 v1Wins++;
-                cout << "V1 wins\n";
+                cout << "V1 wins";
+                if (wasMate) {
+                    cout << " (checkmate/stalemate)\n";
+                } else {
+                    cout << " (material: " << whiteMaterial << " vs " << blackMaterial << ")\n";
+                }
             } else {
                 draws++;
-                cout << "Draw\n";
+                cout << "Draw";
+                if (wasMate) {
+                    cout << " (stalemate)\n";
+                } else {
+                    cout << " (move limit, equal material: " << whiteMaterial << ")\n";
+                }
             }
         }
     }
@@ -230,7 +373,7 @@ int main() {
             EngineV1 v1Engine(v1Eval);
             
             int moveCount = 0;
-            int maxMoves = 80;
+            int maxMoves = 150;  // Increased from 80 to allow more decisive games
             
             cout << "Game " << (i + 1) << "/" << numGames << " ";
             cout << "(NEW plays " << (newPlaysWhite ? "White" : "Black") << ")... ";
@@ -246,31 +389,90 @@ int main() {
                     bestMove = v1Engine.getBestMove(game, 4);  // V1 always at depth 4
                 }
                 
-                if (bestMove.startRow == -1) break;
+                if (bestMove.startRow == -1) {
+                    cout << "[Game " << (i+1) << " ended early: no valid move at turn " << moveCount << "] ";
+                    break;
+                }
                 
                 game.makeEngineMove(bestMove);
                 moveCount++;
             }
             
-            string result = "draw";
-            if (game.isGameOver()) {
-                string gameResult = game.getGameResult();
-                if (gameResult.find("White wins") != string::npos) {
-                    result = newPlaysWhite ? "new" : "v1";
-                } else if (gameResult.find("Black wins") != string::npos) {
-                    result = newPlaysWhite ? "v1" : "new";
+            // Calculate material for tiebreaker
+            double whiteMaterial = 0.0;
+            double blackMaterial = 0.0;
+            
+            for (int row = 0; row < 8; row++) {
+                for (int col = 0; col < 8; col++) {
+                    int piece = board[row][col];
+                    if (isEmpty(piece)) continue;
+                    
+                    double value = 0.0;
+                    int pieceType = piece & 0b0111;
+                    
+                    if (pieceType == 0b0001) value = 1.0;       // Pawn
+                    else if (pieceType == 0b0010) value = 5.0;  // Rook
+                    else if (pieceType == 0b0011) value = 3.0;  // Knight
+                    else if (pieceType == 0b0100) value = 3.0;  // Bishop
+                    else if (pieceType == 0b0101) value = 9.0;  // Queen
+                    
+                    if (isWhite(piece)) {
+                        whiteMaterial += value;
+                    } else {
+                        blackMaterial += value;
+                    }
                 }
             }
             
-            if (result == "new") {
+            GameResult result;
+            result.whiteMaterial = whiteMaterial;
+            result.blackMaterial = blackMaterial;
+            result.wasMateOrStalemate = game.isGameOver();
+            
+            if (game.isGameOver()) {
+                string gameResult = game.getGameResult();
+                if (gameResult.find("White wins") != string::npos) {
+                    result.winner = newPlaysWhite ? "new" : "v1";
+                } else if (gameResult.find("Black wins") != string::npos) {
+                    result.winner = newPlaysWhite ? "v1" : "new";
+                } else {
+                    result.winner = "draw";
+                }
+            } else {
+                // Game hit move limit - use material as tiebreaker
+                if (whiteMaterial > blackMaterial + 0.5) {
+                    result.winner = newPlaysWhite ? "new" : "v1";
+                } else if (blackMaterial > whiteMaterial + 0.5) {
+                    result.winner = newPlaysWhite ? "v1" : "new";
+                } else {
+                    result.winner = "draw";
+                }
+            }
+            
+            if (result.winner == "new") {
                 newWins++;
-                cout << "NEW wins!\n";
-            } else if (result == "v1") {
+                cout << "NEW wins";
+                if (result.wasMateOrStalemate) {
+                    cout << " (checkmate/stalemate)\n";
+                } else {
+                    cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                }
+            } else if (result.winner == "v1") {
                 v1Wins++;
-                cout << "V1 wins\n";
+                cout << "V1 wins";
+                if (result.wasMateOrStalemate) {
+                    cout << " (checkmate/stalemate)\n";
+                } else {
+                    cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                }
             } else {
                 draws++;
-                cout << "Draw\n";
+                cout << "Draw";
+                if (result.wasMateOrStalemate) {
+                    cout << " (stalemate)\n";
+                } else {
+                    cout << " (move limit, equal material: " << result.whiteMaterial << ")\n";
+                }
             }
         }
     }
