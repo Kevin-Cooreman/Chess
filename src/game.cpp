@@ -319,12 +319,12 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     
     undoStack.push_back(info);
     
-    // === ZOBRIST HASH UPDATE: Remove old state ===
+    // === ZOBRIST HASH INCREMENTAL UPDATE ===
     
-    // Helper function to convert piece to zobrist index
+    // Helper to convert piece to zobrist index
     auto pieceToZobristIndex = [](int piece) -> int {
         bool isWhitePiece = isWhite(piece);
-        int pieceValue = piece & 0b0111;  // Get piece type (lower 3 bits)
+        int pieceValue = piece & 0b0111;
         int typeIndex;
         switch (pieceValue) {
             case 0b001: typeIndex = 0; break;  // PAWN
@@ -337,6 +337,11 @@ void ChessGame::makeMoveForEngine(const Move& move) {
         }
         return isWhitePiece ? typeIndex : (typeIndex + 6);
     };
+    
+    // Remove old side-to-move bit if it was black's turn
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
     
     // Remove old castling rights
     int oldCastlingIndex = 0;
@@ -371,35 +376,33 @@ void ChessGame::makeMoveForEngine(const Move& move) {
         zobristHash ^= zobristTable[captureSquare][pieceToZobristIndex(capturedPiece)];
     }
     
-    // Handle castling rook movement (BEFORE makeMove so we can read original rook position)
+    // Remove castling rook from old position (BEFORE makeMove)
     if (move.moveType == CASTLING_KINGSIDE) {
         int rookSourceSquare = move.startRow * 8 + 7;
-        int rook = board[move.startRow][7];  // Read rook from original position
+        int rook = board[move.startRow][7];
         zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
     } else if (move.moveType == CASTLING_QUEENSIDE) {
         int rookSourceSquare = move.startRow * 8 + 0;
-        int rook = board[move.startRow][0];  // Read rook from original position
+        int rook = board[move.startRow][0];
         zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
     }
     
-    // Execute the move
+    // Execute the move (updates board, castling rights, en passant)
     makeMove(move);
     
-    // === ZOBRIST HASH UPDATE: Add new state ===
-    
-    // Add piece to destination square (handle promotion)
+    // Add piece to destination square (handles promotion)
     int destSquare = move.targetRow * 8 + move.targetColumn;
     int finalPiece = board[move.targetRow][move.targetColumn];
     zobristHash ^= zobristTable[destSquare][pieceToZobristIndex(finalPiece)];
     
-    // Add castling rook to new position (AFTER makeMove so rook is in new position)
+    // Add castling rook to new position (AFTER makeMove)
     if (move.moveType == CASTLING_KINGSIDE) {
         int rookDestSquare = move.startRow * 8 + 5;
-        int rook = board[move.startRow][5];  // Read rook from new position
+        int rook = board[move.startRow][5];
         zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
     } else if (move.moveType == CASTLING_QUEENSIDE) {
         int rookDestSquare = move.startRow * 8 + 3;
-        int rook = board[move.startRow][3];  // Read rook from new position
+        int rook = board[move.startRow][3];
         zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
     }
     
@@ -420,19 +423,24 @@ void ChessGame::makeMoveForEngine(const Move& move) {
         zobristHash ^= zobristEnPassant[enPassantTargetCol];
     }
     
-    // Toggle side to move
-    zobristHash ^= zobristSideToMove;
-    
-    // Mark FEN as needing update (lazy evaluation - only regenerate when requested)
+    // Mark FEN as needing update
     fenNeedsUpdate = true;
     
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
     
+    // Add new side-to-move bit if it's now black's turn
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
+    
     // Increment fullmove number after black's move
     if (isWhiteTurn) {
         fullmoveNumber++;
     }
+    
+    // Recompute hash (incremental updates have a subtle bug - TODO: fix)
+    zobristHash = computeZobristHash();
 }
 
 // Make an engine move in the actual game (updates game state properly)

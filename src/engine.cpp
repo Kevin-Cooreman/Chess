@@ -18,8 +18,8 @@ static int moveGenCalls = 0;
 Move Engine::getBestMove(ChessGame& game, int depth) {
     nodesSearched = 0;  // Reset counter at start of search
     ttHits = 0;  // Reset TT hits counter
-    // DON'T clear TT - reuse entries across searches and iterations!
-    // transpositionTable.clear();  
+    // NOTE: Fixed TT corruption bug - don't store terminal node scores (checkmate/stalemate)
+    // transpositionTable.clear();  // No longer needed!
     
     vector<Move> legalMoves = game.getLegalMoves();
     
@@ -396,11 +396,16 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             // Checkmate: return extreme values
             eval = isMaximizing ? -100000.0 : 100000.0;
         } else {
-            // Stalemate: return 0 (draw)
-            eval = 0.0;
+            // Stalemate: penalize if we're winning, reward if we're losing
+            // This makes the engine avoid stalemate when ahead and seek it when behind
+            double materialScore = evaluator.materialCount(game);
+            // If we're ahead (positive material), stalemate is BAD (-5000)
+            // If we're behind (negative material), stalemate is GOOD (+5000)
+            // The penalty/reward is proportional to material advantage
+            eval = -materialScore * 500.0;  // Scale the penalty
         }
-        // Store in transposition table
-        transpositionTable[posKey] = {eval, depth};
+        // DON'T store terminal nodes in TT - they're position-specific
+        // and should not be reused for other positions
         return eval;
     }
     
@@ -448,7 +453,6 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         }
         
         // Store in transposition table
-        static int storeCountMax = 0;
         transpositionTable[posKey] = {maxEval, depth};
         return maxEval;
     } else {

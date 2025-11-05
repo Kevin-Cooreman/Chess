@@ -469,7 +469,7 @@ int main() {
                 draws++;
                 cout << "Draw";
                 if (result.wasMateOrStalemate) {
-                    cout << " (stalemate)\n";
+                    cout << " (stalemate, material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
                 } else {
                     cout << " (move limit, equal material: " << result.whiteMaterial << ")\n";
                 }
