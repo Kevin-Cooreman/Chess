@@ -14,9 +14,9 @@ double Evaluation::evaluate(const ChessGame& game) const {
     double evaluation = 0.0;
 
     double mat = materialCount(game);
-    double pos = 0.5*position(game);
-    double king = 0.5*kingsafety(game);
-    double pawn = 0.5*pawnStructure(game);
+    double pos = 12.9697*position(game);
+    double king = 16.3722*kingsafety(game);
+    double pawn = 3.32665*pawnStructure(game);
     
     evaluation = mat + pos + king + pawn;
     

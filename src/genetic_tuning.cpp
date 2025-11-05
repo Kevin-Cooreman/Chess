@@ -213,8 +213,8 @@ int main() {
     cout << "==========================================\n\n";
     
     // Parameters
-    int populationSize = 12;
-    int generations = 40;
+    int populationSize = 10;
+    int generations = 30;
     int gamesPerMatchup = 2;  // Games per matchup (both colors)
     int depth = 2;  // Lower depth = more mistakes = more decisive games
     double mutationRate = 0.5;  // Higher mutation
@@ -229,15 +229,16 @@ int main() {
     // Calculate total games
     int gamesPerGen = (populationSize * (populationSize - 1) / 2) * gamesPerMatchup * 2;
     int totalGames = gamesPerGen * generations;
-    // Realistic estimate based on ~20-40 moves per game with fast engine:
-    // depth 2: ~0.1s, depth 3: ~0.4s, depth 4: ~2s per game
-    double secondsPerGame = (depth == 2) ? 0.1 : (depth == 3) ? 0.4 : 2.0;
+    // REALISTIC estimate: Each game has ~40 moves, each move takes time based on depth
+    // depth 2: ~2s per game (40 moves × 0.05s), depth 3: ~4s per game (40 moves × 0.1s)
+    // depth 4: ~20s per game (40 moves × 0.5s)
+    double secondsPerGame = (depth == 2) ? 2.0 : (depth == 3) ? 4.0 : 20.0;
     double estimatedSeconds = totalGames * secondsPerGame;
     
     cout << "  Games per generation: " << gamesPerGen << "\n";
     cout << "  Total games: " << totalGames << "\n";
-    cout << "  Estimated time: ~" << (int)(estimatedSeconds / 60) << " min " 
-         << (int)estimatedSeconds % 60 << " sec (at depth " << depth << ")\n\n";
+    cout << "  Estimated time: ~" << (int)(estimatedSeconds / 3600) << " hours " 
+         << ((int)(estimatedSeconds / 60) % 60) << " min (at depth " << depth << ")\n\n";
     
     cout << "Press Enter to start...";
     cin.get();

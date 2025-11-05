@@ -38,6 +38,7 @@ set(CORE_SOURCES
     src/game.cpp
     src/evaluation.cpp
     src/engine.cpp
+    src/engine_v1.cpp
 )
 
 # Headers (for IDE convenience)
@@ -48,6 +49,7 @@ set(HEADERS
     src/chessGUI.hpp
     src/evaluation.hpp
     src/engine.hpp
+    src/engine_v1.hpp
 )
 
 # Console version
