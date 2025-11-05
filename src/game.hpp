@@ -61,6 +61,10 @@ public:
     bool makeEngineMove(const Move& move);  // For engine to actually play a move in the game
     vector<Move> getLegalMoves() const;
     
+    // Null move for search optimization
+    void makeNullMove();    // Switch turn without moving (for null move pruning)
+    void undoNullMove();    // Undo null move
+    
     // Input/Output
     void displayBoard() const;
     void displayLegalMoves() const;

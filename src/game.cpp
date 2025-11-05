@@ -930,3 +930,28 @@ void ChessGame::undoMove() {
 void ChessGame::clearUndoStack() {
     undoStack.clear();
 }
+
+// Make a null move (pass turn) for null move pruning
+void ChessGame::makeNullMove() {
+    // Simply switch the turn - no pieces move
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Reset en passant (can't en passant after null move)
+    enPassantTargetRow = -1;
+    enPassantTargetCol = -1;
+    
+    // Mark FEN as needing update
+    fenNeedsUpdate = true;
+}
+
+// Undo a null move
+void ChessGame::undoNullMove() {
+    // Just switch turn back
+    isWhiteTurn = !isWhiteTurn;
+    
+    // Note: We don't restore en passant or other state because null move
+    // pruning is only used when we can cutoff, so we won't continue searching
+    // this branch anyway
+    
+    fenNeedsUpdate = true;
+}
