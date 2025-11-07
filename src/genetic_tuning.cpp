@@ -192,7 +192,7 @@ Chromosome crossover(const Chromosome& parent1, const Chromosome& parent2, mt199
 // Mutation: randomly adjust weights
 void mutate(Chromosome& c, double mutationRate, mt19937& gen) {
     uniform_real_distribution<> prob(0.0, 1.0);
-    normal_distribution<> adjustment(0.0, 2.0);  // Bigger mutations!
+    normal_distribution<> adjustment(0.0, 1.0);  // Bigger mutations!
     
     // Material weight always stays at 1.0 for reference
     c.materialWeight = 1.0;
@@ -212,12 +212,12 @@ int main() {
     cout << "Genetic Algorithm for Chess Engine Tuning\n";
     cout << "==========================================\n\n";
     
-    // Parameters
+    // Parameters (small trial)
     int populationSize = 10;
-    int generations = 30;
+    int generations = 10;
     int gamesPerMatchup = 2;  // Games per matchup (both colors)
     int depth = 2;  // Lower depth = more mistakes = more decisive games
-    double mutationRate = 0.5;  // Higher mutation
+    double mutationRate = 0.1;  // Keep mutation moderate for the trial
     
     cout << "Parameters:\n";
     cout << "  Population size: " << populationSize << "\n";
@@ -248,15 +248,15 @@ int main() {
     
     // Initialize population with WIDE range of weights
     vector<Chromosome> population;
-    uniform_real_distribution<> posDist(0.5, 30.0);  // Much wider!
-    uniform_real_distribution<> ksDist(0.1, 20.0);   // Wider!
+    uniform_real_distribution<> posDist(0.001, 1.0);  // Much wider!
+    uniform_real_distribution<> ksDist(0.001, 1.0);   // Wider!
     uniform_real_distribution<> psDist(0.001, 1.0);  // Wider!
     
     // Add some extreme starting points for diversity (material always 1.0)
-    population.push_back(Chromosome(1.0, 10.0, 5.0, 0.1));   // Balanced
-    population.push_back(Chromosome(1.0, 1.0, 1.0, 0.01));   // Minimal weights
-    population.push_back(Chromosome(1.0, 25.0, 5.0, 0.1));   // Position focused
-    population.push_back(Chromosome(1.0, 5.0, 20.0, 0.1));   // King safety focused
+    population.push_back(Chromosome(1.0, 0.01, 0.01, 0.01));   // Balanced
+    population.push_back(Chromosome(1.0, 0.05, 0.05, 0.05));   // Minimal weights
+    population.push_back(Chromosome(1.0, 0.1, 0.01, 0.01));   // Position focused
+    population.push_back(Chromosome(1.0, 0.01, 0.1, 0.01));   // King safety focused
     
     // Fill rest with random (material always 1.0)
     for (int i = 4; i < populationSize; i++) {
@@ -302,6 +302,10 @@ int main() {
         // Elitism: keep top 2
         newPopulation.push_back(population[0]);
         newPopulation.push_back(population[1]);
+        newPopulation.push_back(population[2]);
+        newPopulation.push_back(population[3]);
+        newPopulation.push_back(population[4]);
+        newPopulation.push_back(population[5]);
         
         // Generate offspring
         while (newPopulation.size() < (size_t)populationSize) {

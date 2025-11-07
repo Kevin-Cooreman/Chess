@@ -16,9 +16,29 @@ int main() {
     // Test 1: Capture hanging queen
     cout << "Test 1: Capture hanging queen" << endl;
     ChessGame game1;
-    game1.loadFEN("rnbqkbnr/pppp1ppp/8/4p3/4P3/8/PPPPQPPP/RNB1KBNR b KQkq - 0 1");
+    // Make the queen on e2 actually capturable (black knight on c3)
+    game1.loadFEN("rnbqkbnr/pppp1ppp/8/4p3/4P3/2n5/PPPPQPPP/RNB1K1NR b KQkq - 0 1");  // Queen on e2, capturable by c3
+    // Diagnostic: list legal moves and per-move evals
+    vector<Move> moves1 = game1.getLegalMoves();
+    cout << "Legal moves (" << moves1.size() << "):\n";
+    for (size_t i = 0; i < moves1.size(); ++i) {
+        const Move &m = moves1[i];
+        cout << i << ": " << game1.moveToString(m);
+        if (m.targetRow == 6 && m.targetColumn == 4) cout << "  <-- targets e2";
+        cout << "\n";
+    }
+    cout << "\nPer-move evals (material, eval after move):\n";
+    for (const Move &m : moves1) {
+        int captured = board[m.targetRow][m.targetColumn];
+        bool isCap = !isEmpty(captured) || m.moveType == EN_PASSANT;
+        cout << game1.moveToString(m) << (isCap ? " [capture]" : "") << " -> ";
+        game1.makeMoveForEngine(m);
+        cout << "Material: " << eval.materialCount(game1) << ", Eval: " << eval.evaluate(game1) << "\n";
+        game1.undoMove();
+    }
+
     Move move1 = engine.getBestMove(game1, 5);
-    
+
     if (move1.targetRow == 6 && move1.targetColumn == 4) {
         cout << "✓ PASS - Captures queen on e2" << endl;
         passed++;

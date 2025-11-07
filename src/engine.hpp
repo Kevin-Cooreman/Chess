@@ -12,9 +12,17 @@
 #include <random>
 
 // Transposition table entry
+enum class TTBound : int {
+    EXACT = 0,
+    LOWER = 1,
+    UPPER = 2
+};
+
 struct TTEntry {
     double score;
     int depth;
+    TTBound bound = TTBound::EXACT; // Whether the stored score is exact, a lower bound or an upper bound
+    int mateDistance = 0; // If this entry represents a mate score, store mate-in-N (plies) here. 0 = not a mate
 };
 
 class Engine {
@@ -25,11 +33,17 @@ private:
 
     // Helper functions
     void fastOrderMoves(vector<Move>& moves);  // Fast MVV-LVA ordering without making moves
+    void orderRootMoves(ChessGame& game, vector<Move>& moves); // Order root moves, preferring checks/mates
     vector<Move> generateCaptureMoves(ChessGame& game);  // Generate only capture moves for quiescence
 
     // Search algorithm
-    double alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing, bool allowNullMove = true);
+    // 'ply' is the number of plies from the root (used to prefer shorter mates)
+    double alphabeta(ChessGame& game, int depth, double alpha, double beta, bool isMaximizing, bool allowNullMove = true, int ply = 0);
     double quiescence(ChessGame& game, double alpha, double beta, bool isMaximizing, int qDepth = 0);  // Quiescence search
+    // Root mate prover: try to prove mate within maxDepth plies. If a mate is found,
+    // returns true and sets outMove to the mating root move.
+    bool rootMateProver(ChessGame& game, int maxDepth, Move& outMove);
+    bool canForceMate(ChessGame& game, int depthLeft, bool attackerIsWhite);
 
 public:
     Engine() = default;

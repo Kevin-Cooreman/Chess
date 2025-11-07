@@ -50,6 +50,7 @@ struct GameResult {
     bool wasMateOrStalemate;  // true if game ended by checkmate/stalemate
     double whiteMaterial;
     double blackMaterial;
+    string termination; // raw game.getGameResult() when terminal
 };
 
 GameResult playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, int depth, const string& startingFEN) {
@@ -120,7 +121,7 @@ GameResult playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, 
         } else if (result.find("Black wins") != string::npos) {
             winner = eval1PlaysWhite ? "v1" : "new";
         }
-        return {winner, true, whiteMaterial, blackMaterial};
+        return {winner, true, whiteMaterial, blackMaterial, result};
     }
     
     // Game hit move limit - use material count as tiebreaker
@@ -130,7 +131,7 @@ GameResult playGame(Evaluation& eval1, Evaluation& eval2, bool eval1PlaysWhite, 
         winner = (whiteWins == eval1PlaysWhite) ? "new" : "v1";
     }
     
-    return {winner, false, whiteMaterial, blackMaterial};
+    return {winner, false, whiteMaterial, blackMaterial, string("")};
 }
 
 int main() {
@@ -189,7 +190,7 @@ int main() {
                 newWins++;
                 cout << "NEW wins";
                 if (result.wasMateOrStalemate) {
-                    cout << " (checkmate/stalemate)!\n";
+                    cout << " (" << result.termination << ")!\n";
                 } else {
                     cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
                 }
@@ -313,10 +314,11 @@ int main() {
             
             string winner = "draw";
             bool wasMate = false;
-            
+            string gameResult;
+
             if (game.isGameOver()) {
                 wasMate = true;
-                string gameResult = game.getGameResult();
+                gameResult = game.getGameResult();
                 if (gameResult.find("White wins") != string::npos) {
                     winner = newPlaysWhite ? "new" : "v1";
                 } else if (gameResult.find("Black wins") != string::npos) {
@@ -340,7 +342,7 @@ int main() {
                 v1Wins++;
                 cout << "V1 wins";
                 if (wasMate) {
-                    cout << " (checkmate/stalemate)\n";
+                    cout << " (" << gameResult << ")\n";
                 } else {
                     cout << " (material: " << whiteMaterial << " vs " << blackMaterial << ")\n";
                 }
@@ -348,7 +350,7 @@ int main() {
                 draws++;
                 cout << "Draw";
                 if (wasMate) {
-                    cout << " (stalemate)\n";
+                    cout << " (" << gameResult << ")\n";
                 } else {
                     cout << " (move limit, equal material: " << whiteMaterial << ")\n";
                 }
@@ -439,6 +441,7 @@ int main() {
             
             if (game.isGameOver()) {
                 string gameResult = game.getGameResult();
+                result.termination = gameResult;
                 if (gameResult.find("White wins") != string::npos) {
                     result.winner = newPlaysWhite ? "new" : "v1";
                 } else if (gameResult.find("Black wins") != string::npos) {
@@ -461,7 +464,8 @@ int main() {
                 newWins++;
                 cout << "NEW wins";
                 if (result.wasMateOrStalemate) {
-                    cout << " (checkmate/stalemate)\n";
+                    if (result.termination.empty()) cout << " (checkmate/stalemate)\n";
+                    else cout << " (" << result.termination << ")\n";
                 } else {
                     cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
                 }
@@ -469,7 +473,8 @@ int main() {
                 v1Wins++;
                 cout << "V1 wins";
                 if (result.wasMateOrStalemate) {
-                    cout << " (checkmate/stalemate)\n";
+                    if (result.termination.empty()) cout << " (checkmate/stalemate)\n";
+                    else cout << " (" << result.termination << ")\n";
                 } else {
                     cout << " (material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
                 }
@@ -477,7 +482,8 @@ int main() {
                 draws++;
                 cout << "Draw";
                 if (result.wasMateOrStalemate) {
-                    cout << " (stalemate, material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                    if (result.termination.empty()) cout << " (stalemate, material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
+                    else cout << " (" << result.termination << ", material: " << result.whiteMaterial << " vs " << result.blackMaterial << ")\n";
                 } else {
                     cout << " (move limit, equal material: " << result.whiteMaterial << ")\n";
                 }

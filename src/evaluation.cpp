@@ -14,18 +14,19 @@ double Evaluation::evaluate(const ChessGame& game) const {
     double evaluation = 0.0;
 
     double mat = materialCount(game);
-    double pos = 12.9697*position(game);
-    double king = 16.3722*kingsafety(game);
-    double pawn = 3.32665*pawnStructure(game);
+    double pos = 0.01*position(game);      // PSTs in centipawns, scaled down
+    double king = 0.01*kingsafety(game);   // Was 16.3722, way too high!
+    double pawn = 0.01*pawnStructure(game); // Was 3.32665, too high
+    // Removed mating patterns and king tropism - material should dominate
     
     // Mobility bonus removed - too expensive to calculate getLegalMoves() on every eval
     // TODO: Add back more intelligently (only at root/PV nodes, or cache the count)
     
     evaluation = mat + pos + king + pawn;
     
-    // Debug output - comment out to reduce noise
-    // cout << "Eval components - Mat: " << mat << " Pos: " << pos 
-    // << " King: " << king << " Pawn: " << pawn << " Mobility: " << mobility << " Total: " << evaluation << endl;
+    // Debug output - ENABLED for debugging queen capture issue
+    // cout << "Eval - Mat: " << mat << " Pos: " << pos 
+    // << " King: " << king << " Pawn: " << pawn << " Total: " << evaluation << endl;
 
     return evaluation;
 }
