@@ -319,10 +319,33 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     
     undoStack.push_back(info);
     
-    // === ZOBRIST HASH INCREMENTAL UPDATE ===
+    // === INCREMENTAL ZOBRIST HASH UPDATE ===
+    // Strategy: Remove old state, make move, add new state
+    
+    // 1. Remove old side-to-move (only if black's turn)
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
+    
+    // 2. Remove old castling rights
+    int oldCastlingIndex = 0;
+    if (!whiteKingMoved) {
+        if (!whiteKingsideRookMoved) oldCastlingIndex |= 1;
+        if (!whiteQueensideRookMoved) oldCastlingIndex |= 2;
+    }
+    if (!blackKingMoved) {
+        if (!blackKingsideRookMoved) oldCastlingIndex |= 4;
+        if (!blackQueensideRookMoved) oldCastlingIndex |= 8;
+    }
+    zobristHash ^= zobristCastling[oldCastlingIndex];
+    
+    // 3. Remove old en passant
+    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
+        zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
     
     // Helper to convert piece to zobrist index
-    auto pieceToZobristIndex = [](int piece) -> int {
+    auto getZobristIndex = [](int piece) -> int {
         bool isWhitePiece = isWhite(piece);
         int pieceValue = piece & 0b0111;
         int typeIndex;
@@ -338,75 +361,46 @@ void ChessGame::makeMoveForEngine(const Move& move) {
         return isWhitePiece ? typeIndex : (typeIndex + 6);
     };
     
-    // Remove old side-to-move bit if it was black's turn
-    if (!isWhiteTurn) {
-        zobristHash ^= zobristSideToMove;
-    }
-    
-    // Remove old castling rights
-    int oldCastlingIndex = 0;
-    if (!whiteKingMoved) {
-        if (!whiteKingsideRookMoved) oldCastlingIndex |= 1;
-        if (!whiteQueensideRookMoved) oldCastlingIndex |= 2;
-    }
-    if (!blackKingMoved) {
-        if (!blackKingsideRookMoved) oldCastlingIndex |= 4;
-        if (!blackQueensideRookMoved) oldCastlingIndex |= 8;
-    }
-    zobristHash ^= zobristCastling[oldCastlingIndex];
-    
-    // Remove old en passant
-    if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
-        zobristHash ^= zobristEnPassant[enPassantTargetCol];
-    }
-    
-    // Remove piece from source square
+    // 4. Remove moving piece from source
     int movingPiece = board[move.startRow][move.startColumn];
-    int sourceSquare = move.startRow * 8 + move.startColumn;
-    zobristHash ^= zobristTable[sourceSquare][pieceToZobristIndex(movingPiece)];
+    int srcSquare = move.startRow * 8 + move.startColumn;
+    zobristHash ^= zobristTable[srcSquare][getZobristIndex(movingPiece)];
     
-    // Remove captured piece if exists
+    // 5. Remove captured piece (if any)
     if (capturedPiece != EMPTY) {
-        int captureSquare;
-        if (move.moveType == EN_PASSANT) {
-            captureSquare = move.startRow * 8 + move.targetColumn;
-        } else {
-            captureSquare = move.targetRow * 8 + move.targetColumn;
-        }
-        zobristHash ^= zobristTable[captureSquare][pieceToZobristIndex(capturedPiece)];
+        int capSquare = (move.moveType == EN_PASSANT) 
+            ? (move.startRow * 8 + move.targetColumn)  // En passant captures on different row
+            : (move.targetRow * 8 + move.targetColumn);
+        zobristHash ^= zobristTable[capSquare][getZobristIndex(capturedPiece)];
     }
     
-    // Remove castling rook from old position (BEFORE makeMove)
+    // 6. For castling, remove rook from source square (before makeMove)
     if (move.moveType == CASTLING_KINGSIDE) {
-        int rookSourceSquare = move.startRow * 8 + 7;
-        int rook = board[move.startRow][7];
-        zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
+        int rookSrc = move.startRow * 8 + 7;
+        zobristHash ^= zobristTable[rookSrc][getZobristIndex(board[move.startRow][7])];
     } else if (move.moveType == CASTLING_QUEENSIDE) {
-        int rookSourceSquare = move.startRow * 8 + 0;
-        int rook = board[move.startRow][0];
-        zobristHash ^= zobristTable[rookSourceSquare][pieceToZobristIndex(rook)];
+        int rookSrc = move.startRow * 8 + 0;
+        zobristHash ^= zobristTable[rookSrc][getZobristIndex(board[move.startRow][0])];
     }
     
-    // Execute the move (updates board, castling rights, en passant)
+    // Execute the move (updates board, castling flags, en passant)
     makeMove(move);
     
-    // Add piece to destination square (handles promotion)
+    // 7. Add piece to destination (handles promotions automatically)
     int destSquare = move.targetRow * 8 + move.targetColumn;
     int finalPiece = board[move.targetRow][move.targetColumn];
-    zobristHash ^= zobristTable[destSquare][pieceToZobristIndex(finalPiece)];
+    zobristHash ^= zobristTable[destSquare][getZobristIndex(finalPiece)];
     
-    // Add castling rook to new position (AFTER makeMove)
+    // 8. For castling, add rook to destination square (after makeMove)
     if (move.moveType == CASTLING_KINGSIDE) {
-        int rookDestSquare = move.startRow * 8 + 5;
-        int rook = board[move.startRow][5];
-        zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
+        int rookDest = move.startRow * 8 + 5;
+        zobristHash ^= zobristTable[rookDest][getZobristIndex(board[move.startRow][5])];
     } else if (move.moveType == CASTLING_QUEENSIDE) {
-        int rookDestSquare = move.startRow * 8 + 3;
-        int rook = board[move.startRow][3];
-        zobristHash ^= zobristTable[rookDestSquare][pieceToZobristIndex(rook)];
+        int rookDest = move.startRow * 8 + 3;
+        zobristHash ^= zobristTable[rookDest][getZobristIndex(board[move.startRow][3])];
     }
     
-    // Add new castling rights
+    // 9. Add new castling rights
     int newCastlingIndex = 0;
     if (!whiteKingMoved) {
         if (!whiteKingsideRookMoved) newCastlingIndex |= 1;
@@ -418,7 +412,7 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     }
     zobristHash ^= zobristCastling[newCastlingIndex];
     
-    // Add new en passant
+    // 10. Add new en passant
     if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
         zobristHash ^= zobristEnPassant[enPassantTargetCol];
     }
@@ -429,7 +423,7 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
     
-    // Add new side-to-move bit if it's now black's turn
+    // 11. Add new side-to-move (only if now black's turn)
     if (!isWhiteTurn) {
         zobristHash ^= zobristSideToMove;
     }
@@ -438,9 +432,6 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     if (isWhiteTurn) {
         fullmoveNumber++;
     }
-    
-    // Recompute hash (incremental updates have a subtle bug - TODO: fix)
-    zobristHash = computeZobristHash();
 }
 
 // Make an engine move in the actual game (updates game state properly)
@@ -489,6 +480,9 @@ bool ChessGame::makeEngineMove(const Move& move) {
     
     // Switch turns
     isWhiteTurn = !isWhiteTurn;
+    
+    // Recompute Zobrist hash after making the move
+    zobristHash = computeZobristHash();
     
     // Increment fullmove number after black's move
     if (isWhiteTurn) {
@@ -1065,6 +1059,11 @@ void ChessGame::makeNullMove() {
     nullMoveOldEnPassantRow = enPassantTargetRow;
     nullMoveOldEnPassantCol = enPassantTargetCol;
     
+    // Remove old side-to-move (only if currently black's turn)
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
+    
     // Remove old en passant from hash
     if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
         zobristHash ^= zobristEnPassant[enPassantTargetCol];
@@ -1073,8 +1072,10 @@ void ChessGame::makeNullMove() {
     // Simply switch the turn - no pieces move
     isWhiteTurn = !isWhiteTurn;
     
-    // Toggle side to move in hash
-    zobristHash ^= zobristSideToMove;
+    // Add new side-to-move (only if now black's turn)
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
     
     // Reset en passant (can't en passant after null move)
     enPassantTargetRow = -1;
@@ -1086,11 +1087,14 @@ void ChessGame::makeNullMove() {
 
 // Undo a null move
 void ChessGame::undoNullMove() {
+    // Remove current side-to-move BEFORE switching turn
+    // (if it's currently black's turn, the bit is in the hash)
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
+    }
+    
     // Switch turn back
     isWhiteTurn = !isWhiteTurn;
-    
-    // Toggle side to move back in hash
-    zobristHash ^= zobristSideToMove;
     
     // Restore en passant state
     enPassantTargetRow = nullMoveOldEnPassantRow;
@@ -1099,6 +1103,12 @@ void ChessGame::undoNullMove() {
     // Add restored en passant back to hash
     if (enPassantTargetRow != -1 && enPassantTargetCol != -1) {
         zobristHash ^= zobristEnPassant[enPassantTargetCol];
+    }
+    
+    // Add back old side-to-move AFTER switching turn
+    // (if we're now back to black's turn, add the bit)
+    if (!isWhiteTurn) {
+        zobristHash ^= zobristSideToMove;
     }
     
     fenNeedsUpdate = true;

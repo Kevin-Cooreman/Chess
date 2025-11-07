@@ -103,6 +103,60 @@ set(SPEED_SOURCES
     ${CORE_SOURCES}
 )
 
+# Test Zobrist hash stability
+set(TEST_ZOBRIST_SOURCES
+    src/test_zobrist.cpp
+    ${CORE_SOURCES}
+)
+
+# Test TT functionality
+set(TEST_TT_SOURCES
+    src/test_tt.cpp
+    ${CORE_SOURCES}
+)
+
+# Test evaluation sanity
+set(TEST_EVAL_SOURCES
+    src/test_eval.cpp
+    ${CORE_SOURCES}
+)
+
+# Test board state
+set(TEST_BOARD_SOURCES
+    src/test_board.cpp
+    ${CORE_SOURCES}
+)
+
+# Test queen capture
+set(TEST_QUEEN_SOURCES
+    src/test_queen.cpp
+    ${CORE_SOURCES}
+)
+
+# Test hash during search
+set(TEST_HASH_SEARCH_SOURCES
+    src/test_hash_search.cpp
+    ${CORE_SOURCES}
+)
+
+# Test full evaluation
+set(TEST_FULL_EVAL_SOURCES
+    src/test_full_eval.cpp
+    ${CORE_SOURCES}
+)
+
+# Test engine self-play
+set(TEST_SELFPLAY_SOURCES
+    src/test_selfplay.cpp
+    ${CORE_SOURCES}
+)
+
+# Test tactical ability
+set(TEST_TACTICS_SOURCES
+    src/test_tactics.cpp
+    ${CORE_SOURCES}
+)
+
 # Create console executable
 add_executable(chess_console ${CONSOLE_SOURCES} ${HEADERS})
 
@@ -126,6 +180,33 @@ add_executable(chess_compare ${COMPARE_SOURCES} ${HEADERS})
 
 # Create speed comparison executable (Zobrist vs FEN)
 add_executable(chess_speed ${SPEED_SOURCES} ${HEADERS})
+
+# Create Zobrist test executable
+add_executable(test_zobrist ${TEST_ZOBRIST_SOURCES} ${HEADERS})
+
+# Create TT test executable
+add_executable(test_tt ${TEST_TT_SOURCES} ${HEADERS})
+
+# Create evaluation test executable  
+add_executable(test_eval ${TEST_EVAL_SOURCES} ${HEADERS})
+
+# Create board state test executable
+add_executable(test_board ${TEST_BOARD_SOURCES} ${HEADERS})
+
+# Create queen capture test executable
+add_executable(test_queen ${TEST_QUEEN_SOURCES} ${HEADERS})
+
+# Create hash search test executable
+add_executable(test_hash_search ${TEST_HASH_SEARCH_SOURCES} ${HEADERS})
+
+# Create full evaluation test executable
+add_executable(test_full_eval ${TEST_FULL_EVAL_SOURCES} ${HEADERS})
+
+# Create self-play test executable
+add_executable(test_selfplay ${TEST_SELFPLAY_SOURCES} ${HEADERS})
+
+# Create tactical ability test executable
+add_executable(test_tactics ${TEST_TACTICS_SOURCES} ${HEADERS})
 
 # Include SFML headers for GUI version
 target_include_directories(chess_gui PRIVATE ${SFML_INCLUDE_DIR})
@@ -164,7 +245,7 @@ add_custom_command(TARGET chess_gui POST_BUILD
     ${CMAKE_SOURCE_DIR}/assets $<TARGET_FILE_DIR:chess_gui>/assets)
 
 # Set output directories
-set_target_properties(chess_console chess_gui chess_tuning chess_benchmark chess_genetic chess_genetic_pst chess_compare chess_speed PROPERTIES
+set_target_properties(chess_console chess_gui chess_tuning chess_benchmark chess_genetic chess_genetic_pst chess_compare chess_speed test_zobrist test_tt test_eval test_board test_queen test_hash_search test_full_eval test_selfplay test_tactics PROPERTIES
     RUNTIME_OUTPUT_DIRECTORY "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_DEBUG "${CMAKE_BINARY_DIR}/bin"
     RUNTIME_OUTPUT_DIRECTORY_RELEASE "${CMAKE_BINARY_DIR}/bin"

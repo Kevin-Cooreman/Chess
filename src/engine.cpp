@@ -2,6 +2,7 @@
 #include <algorithm>
 #include <limits>
 #include <chrono>
+#include <random>
 
 using namespace std;
 using namespace std::chrono;
@@ -13,6 +14,9 @@ static long long moveGenTime = 0;
 static int ttLookupCalls = 0;
 static int evalCalls = 0;
 static int moveGenCalls = 0;
+
+// RNG for root move randomization (opening variety)
+static std::mt19937 engineRng((uint32_t)std::chrono::steady_clock::now().time_since_epoch().count());
 
 // Get the best move for the current position
 Move Engine::getBestMove(ChessGame& game, int depth) {
@@ -42,6 +46,8 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     if (validatedMoves.empty()) {
         return Move(-1, -1, -1, -1); // No valid moves
     }
+    // Shuffle validated moves at root to vary opening choices between games
+    std::shuffle(validatedMoves.begin(), validatedMoves.end(), engineRng);
     
     bool isWhiteTurn = game.isWhiteToMove();
     Move bestMove = validatedMoves[0];
@@ -71,45 +77,37 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
             double bestEval = -numeric_limits<double>::infinity();
             
             for (const Move& move : validatedMoves) {
-                uint64_t hashBefore = game.getZobristHash();
                 game.makeMoveForEngine(move);
                 
                 double eval = alphabeta(game, currentDepth - 1, -numeric_limits<double>::infinity(), 
                                        numeric_limits<double>::infinity(), false);
-                game.undoMove();
-                uint64_t hashAfter = game.getZobristHash();
                 
-                // Verify hash is restored correctly
-                if (hashBefore != hashAfter) {
-                    cout << "ERROR: Hash mismatch! Before: " << hashBefore 
-                         << " After: " << hashAfter << endl;
-                    cout << "Recomputed: " << game.computeZobristHash() << endl;
-                    exit(1);
-                }
+                game.undoMove();
 
                 if (eval > bestEval) {
                     bestEval = eval;
                     bestMove = move;
                 }
             }
+            
+            // Debug output for final iteration
+            if (currentDepth == depth) {
+                // cout << "Depth " << depth << " search: best eval = " << bestEval 
+                //      << ", best move = " << game.moveToString(bestMove) 
+                //      << ", nodes = " << nodesSearched << endl;
+            }
         } else {
             // Black wants to minimize evaluation
             double bestEval = numeric_limits<double>::infinity();
             
             for (const Move& move : validatedMoves) {
-                uint64_t hashBefore = game.getZobristHash();
                 game.makeMoveForEngine(move);
+                
                 double eval = alphabeta(game, currentDepth - 1, -numeric_limits<double>::infinity(), 
                                        numeric_limits<double>::infinity(), true);
+                
                 game.undoMove();
-                uint64_t hashAfter = game.getZobristHash();
-                
-                // Verify hash is restored correctly
-                if (hashBefore != hashAfter) {
-                    cout << "WARNING: Hash mismatch! Before: " << hashBefore 
-                         << " After: " << hashAfter << endl;
-                }
-                
+
                 if (eval < bestEval) {
                     bestEval = eval;
                     bestMove = move;
@@ -497,4 +495,9 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         transpositionTable[posKey] = {minEval, depth};
         return minEval;
     }
+}
+
+// Set RNG seed used for root move randomization
+void Engine::setRngSeed(uint64_t seed) {
+    engineRng.seed((uint32_t)seed);
 }

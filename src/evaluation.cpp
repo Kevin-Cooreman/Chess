@@ -18,11 +18,14 @@ double Evaluation::evaluate(const ChessGame& game) const {
     double king = 16.3722*kingsafety(game);
     double pawn = 3.32665*pawnStructure(game);
     
+    // Mobility bonus removed - too expensive to calculate getLegalMoves() on every eval
+    // TODO: Add back more intelligently (only at root/PV nodes, or cache the count)
+    
     evaluation = mat + pos + king + pawn;
     
     // Debug output - comment out to reduce noise
     // cout << "Eval components - Mat: " << mat << " Pos: " << pos 
-    // << " King: " << king << " Pawn: " << pawn << " Total: " << evaluation << endl;
+    // << " King: " << king << " Pawn: " << pawn << " Mobility: " << mobility << " Total: " << evaluation << endl;
 
     return evaluation;
 }

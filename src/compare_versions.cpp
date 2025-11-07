@@ -181,6 +181,8 @@ int main() {
             cout << "(NEW plays " << (newPlaysWhite ? "White" : "Black") << ")... ";
             cout.flush();
             
+            // Seed engine RNG so each game explores different openings
+            Engine::setRngSeed((uint64_t)steady_clock::now().time_since_epoch().count() + i);
             GameResult result = playGame(newEval, v1Eval, newPlaysWhite, depth, startingFEN);
             
             if (result.winner == "new") {
@@ -223,6 +225,9 @@ int main() {
             bool newPlaysWhite = (i % 2 == 0);
             string startingFEN = testPositions[i % testPositions.size()];
             
+            // Seed RNG to vary opening play per game
+            Engine::setRngSeed((uint64_t)steady_clock::now().time_since_epoch().count() + i);
+
             ChessGame game;
             if (!startingFEN.empty()) {
                 game.loadFEN(startingFEN);
@@ -364,6 +369,9 @@ int main() {
             bool newPlaysWhite = (i % 2 == 0);
             string startingFEN = testPositions[i % testPositions.size()];
             
+            // Seed RNG per game so NEW explores different openings when playing White
+            Engine::setRngSeed((uint64_t)steady_clock::now().time_since_epoch().count() + i);
+
             ChessGame game;
             if (!startingFEN.empty()) {
                 game.loadFEN(startingFEN);

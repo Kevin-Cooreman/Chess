@@ -9,6 +9,7 @@
 #include <limits>
 #include <unordered_map>
 #include <cstdint>
+#include <random>
 
 // Transposition table entry
 struct TTEntry {
@@ -37,6 +38,8 @@ public:
 
     // Main public interface
     Move getBestMove(ChessGame& game, int depth);
+    // Set RNG seed used for root move randomization (opening variety)
+    static void setRngSeed(uint64_t seed);
     
     // Optional: for debugging
     int nodesSearched = 0;
