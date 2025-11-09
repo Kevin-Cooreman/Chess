@@ -4,6 +4,7 @@
 #include <cmath>
 #include <chrono>
 #include <random>
+#include <cstddef>
 
 using namespace std;
 using namespace std::chrono;
@@ -19,6 +20,23 @@ static int moveGenCalls = 0;
 // RNG for root move randomization (opening variety)
 static std::mt19937 engineRng((uint32_t)std::chrono::steady_clock::now().time_since_epoch().count());
 
+// Engine constructors (reserve containers to reduce runtime allocations)
+Engine::Engine() : evaluator() {
+    // Initialize transposition table with a conservative default size (64 MB)
+    try {
+        transpositionTable.init(64);
+    } catch(...) {
+        // ignore failures
+    }
+}
+
+Engine::Engine(const Evaluation& eval) : evaluator(eval) {
+    try {
+        transpositionTable.init(64);
+    } catch(...) {
+    }
+}
+
 // Get the best move for the current position
 Move Engine::getBestMove(ChessGame& game, int depth) {
     nodesSearched = 0;  // Reset counter at start of search
@@ -33,6 +51,7 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
     
     // Validate that moves don't leave king in check
     vector<Move> validatedMoves;
+    validatedMoves.reserve(legalMoves.size());
     for (const Move& move : legalMoves) {
         game.makeMoveForEngine(move);
         bool leavesKingInCheck = game.isInCheck(); // Check if OUR king is in check after move
@@ -165,6 +184,7 @@ Move Engine::getBestMove(ChessGame& game, int depth) {
 void Engine::fastOrderMoves(vector<Move>& moves) {
     struct MoveScore { Move move; int score; };
     vector<MoveScore> scoredMoves;
+    scoredMoves.reserve(moves.size());
     
     for (const Move& move : moves) {
         int score = 0;
@@ -238,7 +258,7 @@ void Engine::fastOrderMoves(vector<Move>& moves) {
 vector<Move> Engine::generateCaptureMoves(ChessGame& game) {
     vector<Move> allMoves = game.getLegalMoves();
     vector<Move> captures;
-    
+    captures.reserve(allMoves.size());
     for (const Move& move : allMoves) {
         // Check if it's a capture
         int capturedPiece = EMPTY;
@@ -362,16 +382,17 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     // Check transposition table BEFORE generating moves (expensive operation)
     auto ttStart = high_resolution_clock::now();
     uint64_t posKey = game.getZobristHash();
-    auto it = transpositionTable.find(posKey);
+    TTEntry ttEntry;
+    bool ttFound = transpositionTable.probe(posKey, ttEntry);
     auto ttEnd = high_resolution_clock::now();
     ttLookupTime += duration_cast<microseconds>(ttEnd - ttStart).count();
     ttLookupCalls++;
     
     // Use TT entry if it was searched at equal or greater depth
     // (A position searched deeper is more accurate)
-    if (it != transpositionTable.end() && it->second.depth >= depth) {
+    if (ttFound && ttEntry.depth >= depth) {
         ttHits++;
-        double stored = it->second.score;
+        double stored = ttEntry.score;
         // Ignore entries with non-finite scores (defensive)
         if (!std::isfinite(stored)) {
             // fall through and search normally
@@ -379,30 +400,30 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             const double MATE_SCORE = 100000.0;
             // If the entry encodes a mate-in-N from that position, reconstruct
             // the score for the current 'ply' so mate-distance is preserved.
-            if (it->second.mateDistance > 0 && std::abs(stored) >= (MATE_SCORE - 1000.0)) {
-                int D = it->second.mateDistance; // plies from stored position to mate
+            if (ttEntry.mateDistance > 0 && std::abs(stored) >= (MATE_SCORE - 1000.0)) {
+                int D = ttEntry.mateDistance; // plies from stored position to mate
                 // Reconstruct a score relative to current ply: score = sign * (MATE_SCORE - (ply + D))
                 double sign = (stored > 0.0) ? 1.0 : -1.0;
                 double adjusted = sign * (MATE_SCORE - (ply + D));
 
-                if (it->second.bound == TTBound::EXACT) {
+                if (ttEntry.bound == TTBound::EXACT) {
                     return adjusted;
-                } else if (it->second.bound == TTBound::LOWER) {
+                } else if (ttEntry.bound == TTBound::LOWER) {
                     if (adjusted > alpha) alpha = adjusted;
                     if (alpha >= beta) return adjusted;
-                } else if (it->second.bound == TTBound::UPPER) {
+                } else if (ttEntry.bound == TTBound::UPPER) {
                     if (adjusted < beta) beta = adjusted;
                     if (alpha >= beta) return adjusted;
                 }
             } else {
                 // Non-mate entries: use previous bound-aware logic
-                if (it->second.bound == TTBound::EXACT) {
+                if (ttEntry.bound == TTBound::EXACT) {
                     return stored;
-                } else if (it->second.bound == TTBound::LOWER) {
+                } else if (ttEntry.bound == TTBound::LOWER) {
                     // Stored score is a lower bound: true score >= stored
                     if (stored > alpha) alpha = stored;
                     if (alpha >= beta) return stored;
-                } else if (it->second.bound == TTBound::UPPER) {
+                } else if (ttEntry.bound == TTBound::UPPER) {
                     // Stored score is an upper bound: true score <= stored
                     if (stored < beta) beta = stored;
                     if (alpha >= beta) return stored;
@@ -425,7 +446,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     // values that can cascade. Only attempt null-move when beta is finite.
     // Do not attempt null-move pruning if TT indicates a mate is nearby or other
     // unsafe conditions. Null-move can irreversibly prune mate lines.
-    bool ttIndicatesMate = (it != transpositionTable.end() && it->second.mateDistance > 0);
+    bool ttIndicatesMate = (ttFound && ttEntry.mateDistance > 0);
     if (allowNullMove && depth >= NULL_MOVE_REDUCTION + 1 && !game.isInCheck() &&
         std::isfinite(beta) && !ttIndicatesMate) {
         // Make null move
@@ -477,6 +498,20 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     // Simple move ordering: captures first (MVV-LVA), then quiet moves
     // Much faster than the complex orderMoves() which makes/undoes moves
     fastOrderMoves(legalmoves);
+    // If transposition table suggests a best move, promote it to the front
+    if (ttFound && ttEntry.packedMove != 0) {
+        Move ttMove = unpackMove(ttEntry.packedMove);
+        auto ittt = find_if(legalmoves.begin(), legalmoves.end(), [&](const Move &m){
+            return m.startRow == ttMove.startRow && m.startColumn == ttMove.startColumn &&
+                   m.targetRow == ttMove.targetRow && m.targetColumn == ttMove.targetColumn &&
+                   m.moveType == ttMove.moveType;
+        });
+        if (ittt != legalmoves.end()) {
+            Move tmp = *ittt;
+            legalmoves.erase(ittt);
+            legalmoves.insert(legalmoves.begin(), tmp);
+        }
+    }
     
     if(isMaximizing){
         //white to move - maximise eval
@@ -485,9 +520,10 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
         double origAlpha = alpha;
         double origBeta = beta;
 
-        //run through legal moves
-        int moveCount = 0;
-        for(const Move& move : legalmoves){
+    //run through legal moves
+    int moveCount = 0;
+    Move bestLocalMove(-1,-1,-1,-1);
+    for(const Move& move : legalmoves){
             game.makeMoveForEngine(move);
             
             double eval;
@@ -515,6 +551,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             }
             
             game.undoMove();
+            if (eval > maxEval) bestLocalMove = move;
             maxEval = max(maxEval, eval);
             alpha = max(alpha, eval);
             if (beta <= alpha) {
@@ -542,7 +579,9 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
                 // Prefer storing mate entries as EXACT so they are returned precisely later
                 bound = TTBound::EXACT;
             }
-            transpositionTable[posKey] = {maxEval, depth, bound, mateDist};
+            uint32_t pm = 0;
+            if (bestLocalMove.startRow != -1) pm = packMove(bestLocalMove);
+            transpositionTable.store(posKey, maxEval, depth, bound, mateDist, pm);
         }
         return maxEval;
     } else {
@@ -552,9 +591,10 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     double origAlpha = alpha;
     double origBeta = beta;
 
-        //run through legal moves
-        int moveCount = 0;
-        for(const Move& move : legalmoves){
+    //run through legal moves
+    int moveCount = 0;
+    Move bestLocalMove(-1,-1,-1,-1);
+    for(const Move& move : legalmoves){
             game.makeMoveForEngine(move);
             
             double eval;
@@ -581,6 +621,7 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             }
             
             game.undoMove();
+            if (eval < minEval) bestLocalMove = move;
             minEval = min(minEval, eval);
             beta = min(beta, eval);
             if (beta <= alpha) {
@@ -605,7 +646,9 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
                 mateDist = D;
                 bound = TTBound::EXACT;
             }
-            transpositionTable[posKey] = {minEval, depth, bound, mateDist};
+            uint32_t pm = 0;
+            if (bestLocalMove.startRow != -1) pm = packMove(bestLocalMove);
+            transpositionTable.store(posKey, minEval, depth, bound, mateDist, pm);
         }
         return minEval;
     }
@@ -686,6 +729,8 @@ void Engine::orderRootMoves(ChessGame& game, vector<Move>& moves) {
 bool Engine::canForceMate(ChessGame& game, int depthLeft, bool attackerIsWhite) {
     // Terminal node: no legal moves
     vector<Move> legal = game.getLegalMoves();
+    // reserve not necessary for immediate iteration, but keep capacity hints
+    legal.reserve(legal.size());
     if (legal.empty()) {
         // If side to move is in check, it's checkmate for the side that just moved
         return game.isInCheck();
