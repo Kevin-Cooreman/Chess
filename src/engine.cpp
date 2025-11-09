@@ -28,6 +28,12 @@ Engine::Engine() : evaluator() {
     } catch(...) {
         // ignore failures
     }
+    // initialize killers/history (packed moves)
+    for (auto &krow : killers) {
+        krow[0] = 0;
+        krow[1] = 0;
+    }
+    history.fill(0);
 }
 
 Engine::Engine(const Evaluation& eval) : evaluator(eval) {
@@ -35,6 +41,11 @@ Engine::Engine(const Evaluation& eval) : evaluator(eval) {
         transpositionTable.init(64);
     } catch(...) {
     }
+    for (auto &krow : killers) {
+        krow[0] = 0;
+        krow[1] = 0;
+    }
+    history.fill(0);
 }
 
 // Get the best move for the current position
@@ -498,6 +509,8 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     // Simple move ordering: captures first (MVV-LVA), then quiet moves
     // Much faster than the complex orderMoves() which makes/undoes moves
     fastOrderMoves(legalmoves);
+    // Apply killer/history ordering (cheap) to further improve ordering
+    orderMovesForSearch(game, legalmoves, ply);
     // If transposition table suggests a best move, promote it to the front
     if (ttFound && ttEntry.packedMove != 0) {
         Move ttMove = unpackMove(ttEntry.packedMove);
@@ -523,7 +536,11 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
     //run through legal moves
     int moveCount = 0;
     Move bestLocalMove(-1,-1,-1,-1);
-    for(const Move& move : legalmoves){
+        for(const Move& move : legalmoves){
+            // detect capture before making the move (cheap)
+            bool isCapture = false;
+            if (move.moveType == EN_PASSANT) isCapture = true;
+            else if (!isEmpty(board[move.targetRow][move.targetColumn])) isCapture = true;
             game.makeMoveForEngine(move);
             
             double eval;
@@ -555,6 +572,16 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             maxEval = max(maxEval, eval);
             alpha = max(alpha, eval);
             if (beta <= alpha) {
+                // record killer/history for quiet moves
+                if (!isCapture && move.moveType != PAWN_PROMOTION) {
+                    uint32_t pm = packMove(move);
+                    // rotate killers
+                    killers[ply][1] = killers[ply][0];
+                    killers[ply][0] = pm;
+                    int from = move.startRow * 8 + move.startColumn;
+                    int to = move.targetRow * 8 + move.targetColumn;
+                    history[from*64 + to] += (depth * depth);
+                }
                 break; // Beta cutoff
             }
             moveCount++;
@@ -722,6 +749,30 @@ void Engine::orderRootMoves(ChessGame& game, vector<Move>& moves) {
 
     moves.clear();
     for (const auto& ms : scored) moves.push_back(ms.move);
+}
+
+// Order moves during search using killer moves and history heuristic (cheap).
+void Engine::orderMovesForSearch(ChessGame& game, vector<Move>& moves, int ply) {
+    if (moves.size() <= 1) return;
+    // Compute scores: high base for killer matches, then history score
+    std::vector<std::pair<int, Move>> scored;
+    scored.reserve(moves.size());
+    uint32_t k0 = killers[ply][0];
+    uint32_t k1 = killers[ply][1];
+    for (const Move &m : moves) {
+        int score = 0;
+        uint32_t pm = packMove(m);
+        if (pm == k0) score += 1000000;
+        else if (pm == k1) score += 800000;
+        // history heuristic: from*64 + to
+        int from = m.startRow * 8 + m.startColumn;
+        int to = m.targetRow * 8 + m.targetColumn;
+        score += history[from*64 + to];
+        scored.emplace_back(score, m);
+    }
+    stable_sort(scored.begin(), scored.end(), [](const auto &a, const auto &b){ return a.first > b.first; });
+    // write back
+    for (size_t i = 0; i < scored.size(); ++i) moves[i] = scored[i].second;
 }
 
 // Depth-limited proof search: attacker tries to force mate within depthLeft plies.

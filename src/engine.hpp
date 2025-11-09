@@ -9,6 +9,8 @@
 #include <limits>
 #include <cstdint>
 #include <random>
+#include <array>
+#include <cstring>
 
 // Transposition table entry
 enum class TTBound : int {
@@ -186,11 +188,17 @@ private:
     Evaluation evaluator;
     TranspositionTable transpositionTable;
     Move pvMove = Move(-1, -1, -1, -1);  // Initialize to invalid move
+    // Killer moves: two killers per ply (store packed moves)
+    static constexpr int MAX_PLY = 128;
+    std::array<std::array<uint32_t,2>, MAX_PLY> killers;
+    // History heuristic: indexed by from*64 + to
+    std::array<int, 64*64> history;
 
     // Helper functions
     void fastOrderMoves(vector<Move>& moves);  // Fast MVV-LVA ordering without making moves
     void orderRootMoves(ChessGame& game, vector<Move>& moves); // Order root moves, preferring checks/mates
     vector<Move> generateCaptureMoves(ChessGame& game);  // Generate only capture moves for quiescence
+    void orderMovesForSearch(ChessGame& game, vector<Move>& moves, int ply);
 
     // Search algorithm
     // 'ply' is the number of plies from the root (used to prefer shorter mates)
