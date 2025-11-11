@@ -94,9 +94,11 @@ The engine uses an efficient board representation with:
 ## Development
 
 The project is structured for easy extension and modification:
-- Clean separation between engine logic and interface
-- Comprehensive move validation system
-- Extensible game state management
-- Well-documented code with clear APIs
+ in this project i mostly relied on github copilot to help me
+ at this point it seems I exhausted it's suefulness. therefore i'll keep the project as a decent V1, but i will start a V2 where have more control over how the project is built in the hopes that with proper research about techniques and actual programming strategies i'll actually be able to build a good, fast engine
+
+## Some takeaways
+
+-  i did actually learn a lot about C++ programming and building chess engines in this project. I also learned a lot about the search algorithms used to program chess !!
 
 
