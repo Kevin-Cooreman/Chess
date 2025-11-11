@@ -40,6 +40,9 @@ BenchResult testIterativeDeepening(int maxDepth) {
         cout << "  Depth " << d << ": " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " TT hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -72,6 +75,9 @@ BenchResult testRepeatedSearch(int depth, int numSearches) {
         cout << "  Search " << i << ": " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " TT hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -140,6 +146,9 @@ BenchResult testTranspositions(int depth) {
         cout << "  Spanish Game: " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine (covers all three positions)
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -172,6 +181,9 @@ BenchResult testDeepSearch(int depth) {
          << " (" << fixed << setprecision(1) << hitRate << "%)" << endl;
     cout << "Best move: " << game.moveToString(bestMove) << endl;
     
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
+
     return {"Deep Search", depth, engine.nodesSearched, engine.ttHits, hitRate, timeMs,
             (engine.nodesSearched / timeMs) * 1000.0, "Single search at depth " + to_string(depth)};
 }

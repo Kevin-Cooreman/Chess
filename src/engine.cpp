@@ -24,7 +24,7 @@ static std::mt19937 engineRng((uint32_t)std::chrono::steady_clock::now().time_si
 Engine::Engine() : evaluator() {
     // Initialize transposition table with a conservative default size (64 MB)
     try {
-        transpositionTable.init(64);
+        transpositionTable.init(256);
     } catch(...) {
         // ignore failures
     }
@@ -38,7 +38,7 @@ Engine::Engine() : evaluator() {
 
 Engine::Engine(const Evaluation& eval) : evaluator(eval) {
     try {
-        transpositionTable.init(64);
+        transpositionTable.init(256);
     } catch(...) {
     }
     for (auto &krow : killers) {
@@ -294,6 +294,9 @@ double Engine::quiescence(ChessGame& game, double alpha, double beta, bool isMax
     
     // Limit quiescence depth to prevent explosion (more aggressive limit)
     const int MAX_QUIESCENCE_DEPTH = 6;
+    // don't store quiescence-only results here (store-filter: depth >= 1 required)
+    uint64_t posKey = game.getZobristHash();
+
     if (qDepth >= MAX_QUIESCENCE_DEPTH) {
         auto evalStart = high_resolution_clock::now();
         double result = evaluator.evaluate(game);
@@ -333,6 +336,7 @@ double Engine::quiescence(ChessGame& game, double alpha, double beta, bool isMax
     
     // If no captures, position is quiet - return stand pat
     if (captureMoves.empty()) {
+        // do not store stand-pat (depth 0) to avoid noisy shallow entries
         return standPat;
     }
     
@@ -501,8 +505,10 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             // The penalty/reward is proportional to material advantage
             eval = -materialScore * 500.0;  // Scale the penalty
         }
-        // DON'T store terminal nodes in TT - they're position-specific
-        // and should not be reused for other positions
+        // Store terminal nodes in TT as exact evaluations (depth 0) only if we're at non-quiescence depth
+        if (depth >= 1) {
+            transpositionTable.store(posKey, eval, 0, TTBound::EXACT, 0);
+        }
         return eval;
     }
     
@@ -832,4 +838,9 @@ bool Engine::rootMateProver(ChessGame& game, int maxDepth, Move& outMove) {
         }
     }
     return false;
+}
+
+// Diagnostics: forward TT summary
+void Engine::printTTSummary() const {
+    transpositionTable.printSummary();
 }
