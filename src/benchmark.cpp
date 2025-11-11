@@ -40,6 +40,9 @@ BenchResult testIterativeDeepening(int maxDepth) {
         cout << "  Depth " << d << ": " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " TT hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -72,6 +75,9 @@ BenchResult testRepeatedSearch(int depth, int numSearches) {
         cout << "  Search " << i << ": " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " TT hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -140,6 +146,9 @@ BenchResult testTranspositions(int depth) {
         cout << "  Spanish Game: " << engine.nodesSearched << " nodes, " 
              << engine.ttHits << " hits" << endl;
     }
+
+    // Print TT instrumentation summary for this engine (covers all three positions)
+    engine.printTTSummary();
     
     auto end = high_resolution_clock::now();
     double timeMs = duration_cast<microseconds>(end - start).count() / 1000.0;
@@ -172,6 +181,9 @@ BenchResult testDeepSearch(int depth) {
          << " (" << fixed << setprecision(1) << hitRate << "%)" << endl;
     cout << "Best move: " << game.moveToString(bestMove) << endl;
     
+    // Print TT instrumentation summary for this engine
+    engine.printTTSummary();
+
     return {"Deep Search", depth, engine.nodesSearched, engine.ttHits, hitRate, timeMs,
             (engine.nodesSearched / timeMs) * 1000.0, "Single search at depth " + to_string(depth)};
 }
@@ -255,6 +267,55 @@ int main() {
     printResults(results);
     
     cout << "Benchmark complete!\n";
+    // Print aggregated profiling counters (move generation / evaluation / TT lookups)
+    cout << "\n=== AGGREGATED PROFILING COUNTERS ===\n";
+    long long ttTimeUs = Engine::getTTLookupTime();
+    long long evTimeUs = Engine::getEvalTime();
+    long long mgTimeUs = Engine::getMoveGenTime();
+    int ttCalls = Engine::getTTLookupCalls();
+    int evCalls = Engine::getEvalCalls();
+    int mgCalls = Engine::getMoveGenCalls();
+    long long mmTimeUs = Engine::getMakeMoveTime();
+    long long umTimeUs = Engine::getUndoMoveTime();
+    int mmCalls = Engine::getMakeMoveCalls();
+    int umCalls = Engine::getUndoMoveCalls();
+
+    double ttMs = ttTimeUs / 1000.0;
+    double evMs = evTimeUs / 1000.0;
+    double mgMs = mgTimeUs / 1000.0;
+    double totalProfiledMs = ttMs + evMs + mgMs;
+
+    double mmMs = mmTimeUs / 1000.0;
+    double umMs = umTimeUs / 1000.0;
+    double totalProfiledWithMovesMs = totalProfiledMs + mmMs + umMs;
+
+    cout << "TT lookups:      " << ttCalls << " calls, " << fixed << setprecision(3) << ttMs << " ms ";
+    if (ttCalls) cout << "(avg " << (ttTimeUs / (double)ttCalls / 1000.0) << " ms)";
+    cout << "\n";
+
+    cout << "Evaluations:     " << evCalls << " calls, " << fixed << setprecision(3) << evMs << " ms ";
+    if (evCalls) cout << "(avg " << (evTimeUs / (double)evCalls / 1000.0) << " ms)";
+    cout << "\n";
+
+    cout << "Move generation: " << mgCalls << " calls, " << fixed << setprecision(3) << mgMs << " ms ";
+    if (mgCalls) cout << "(avg " << (mgTimeUs / (double)mgCalls / 1000.0) << " ms)";
+    cout << "\n";
+
+    if (totalProfiledMs > 0.0) {
+        cout << "Profiled total (TT+Eval+MoveGen):  " << fixed << setprecision(3) << totalProfiledMs << " ms\n";
+        cout << "Make/Undo total:                    " << fixed << setprecision(3) << (mmMs + umMs) << " ms\n";
+        cout << "Profiled total (with make/undo):   " << fixed << setprecision(3) << totalProfiledWithMovesMs << " ms\n";
+        cout << "Percent breakdown: TT=" << fixed << setprecision(1) << (100.0 * ttMs / totalProfiledWithMovesMs) << "% ";
+        cout << "Eval=" << fixed << setprecision(1) << (100.0 * evMs / totalProfiledWithMovesMs) << "% ";
+        cout << "MoveGen=" << fixed << setprecision(1) << (100.0 * mgMs / totalProfiledWithMovesMs) << "% ";
+        cout << "Make=" << fixed << setprecision(1) << (100.0 * mmMs / totalProfiledWithMovesMs) << "% ";
+        cout << "Undo=" << fixed << setprecision(1) << (100.0 * umMs / totalProfiledWithMovesMs) << "%\n";
+    }
+
+    // Also print raw make/undo stats
+    cout << "MakeMove calls: " << mmCalls << ", total ms: " << fixed << setprecision(3) << (mmMs) << " ms (avg " << (mmCalls? (mmTimeUs/(double)mmCalls/1000.0):0.0) << " ms)\n";
+    cout << "UndoMove calls: " << umCalls << ", total ms: " << fixed << setprecision(3) << (umMs) << " ms (avg " << (umCalls? (umTimeUs/(double)umCalls/1000.0):0.0) << " ms)\n";
+
     cout << "\nInterpretation:\n";
     cout << "- Iterative deepening should show highest TT hit rate\n";
     cout << "- Repeated searches should be much faster after 1st search\n";

@@ -7,6 +7,9 @@
 #include <random>
 #include <algorithm>
 #include <cmath>
+#include <thread>
+#include <atomic>
+#include <chrono>
 
 using namespace std;
 
@@ -121,40 +124,67 @@ void evaluateFitness(vector<Chromosome>& population, int gamesPerMatchup, int de
         c.draws = 0;
         c.fitness = 0.0;
     }
-    
-    // Round-robin tournament
+    // Prepare tasks: one task per single game (i vs j, with color)
+    struct Task { size_t i; size_t j; bool c1PlaysWhite; };
+    std::vector<Task> tasks;
+    tasks.reserve(population.size() * population.size());
     for (size_t i = 0; i < population.size(); i++) {
         for (size_t j = i + 1; j < population.size(); j++) {
             for (int g = 0; g < gamesPerMatchup; g++) {
-                // Game 1: i plays white
-                string result1 = playGame(population[i], population[j], true, depth, gen);
-                if (result1 == "c1") {
-                    population[i].wins++;
-                    population[j].losses++;
-                } else if (result1 == "c2") {
-                    population[j].wins++;
-                    population[i].losses++;
-                } else {
-                    population[i].draws++;
-                    population[j].draws++;
-                }
-                
-                // Game 2: i plays black
-                string result2 = playGame(population[i], population[j], false, depth, gen);
-                if (result2 == "c1") {
-                    population[i].wins++;
-                    population[j].losses++;
-                } else if (result2 == "c2") {
-                    population[j].wins++;
-                    population[i].losses++;
-                } else {
-                    population[i].draws++;
-                    population[j].draws++;
-                }
+                tasks.push_back({i, j, true});
+                tasks.push_back({i, j, false});
             }
         }
     }
-    
+
+    // Pre-generate per-task seeds from the supplied RNG to allow deterministic runs
+    std::vector<uint32_t> seeds(tasks.size());
+    uniform_int_distribution<uint32_t> seedDist(0, 0xFFFFFFFFu);
+    for (size_t t = 0; t < tasks.size(); ++t) seeds[t] = seedDist(gen);
+
+    // Per-thread accumulators to avoid locking
+    unsigned int numThreads = 1;
+    struct Acc { int wins; int losses; int draws; Acc(): wins(0), losses(0), draws(0) {} };
+    std::vector<std::vector<Acc>> threadAcc(numThreads, std::vector<Acc>(population.size()));
+
+    std::atomic_size_t nextTask(0);
+
+    auto worker = [&](unsigned int tid){
+        while (true) {
+            size_t t = nextTask.fetch_add(1);
+            if (t >= tasks.size()) break;
+            const Task &tk = tasks[t];
+            // create per-game RNG
+            mt19937 localGen(seeds[t]);
+            string result = playGame(population[tk.i], population[tk.j], tk.c1PlaysWhite, depth, localGen);
+            if (result == "c1") {
+                threadAcc[tid][tk.i].wins++;
+                threadAcc[tid][tk.j].losses++;
+            } else if (result == "c2") {
+                threadAcc[tid][tk.j].wins++;
+                threadAcc[tid][tk.i].losses++;
+            } else {
+                threadAcc[tid][tk.i].draws++;
+                threadAcc[tid][tk.j].draws++;
+            }
+        }
+    };
+
+    // Launch worker threads
+    vector<thread> threads;
+    threads.reserve(numThreads);
+    for (unsigned int tid = 0; tid < numThreads; ++tid) threads.emplace_back(worker, tid);
+    for (auto &th : threads) th.join();
+
+    // Merge thread-local accumulators into population
+    for (unsigned int tid = 0; tid < numThreads; ++tid) {
+        for (size_t k = 0; k < population.size(); ++k) {
+            population[k].wins += threadAcc[tid][k].wins;
+            population[k].losses += threadAcc[tid][k].losses;
+            population[k].draws += threadAcc[tid][k].draws;
+        }
+    }
+
     // Calculate fitness as win rate
     for (auto& c : population) {
         int totalGames = c.wins + c.losses + c.draws;
@@ -213,10 +243,10 @@ int main() {
     cout << "==========================================\n\n";
     
     // Parameters (small trial)
-    int populationSize = 10;
-    int generations = 10;
+    int populationSize = 2;
+    int generations = 1;
     int gamesPerMatchup = 2;  // Games per matchup (both colors)
-    int depth = 2;  // Lower depth = more mistakes = more decisive games
+    int depth = 4;  // Lower depth = more mistakes = more decisive games
     double mutationRate = 0.1;  // Keep mutation moderate for the trial
     
     cout << "Parameters:\n";
@@ -274,9 +304,15 @@ int main() {
         cout << "Generation " << (gen_num + 1) << "/" << generations << "\n";
         cout << "===========================================\n";
         
-        // Evaluate fitness
-        cout << "Running tournament (" << gamesPerGen << " games)...\n";
-        evaluateFitness(population, gamesPerMatchup, depth, gen);
+    // Evaluate fitness with timing
+    cout << "Running tournament (" << gamesPerGen << " games)...\n";
+    auto gen_start = chrono::steady_clock::now();
+    evaluateFitness(population, gamesPerMatchup, depth, gen);
+    auto gen_end = chrono::steady_clock::now();
+    auto gen_ms = chrono::duration_cast<chrono::milliseconds>(gen_end - gen_start).count();
+    double gen_seconds = gen_ms / 1000.0;
+    double games_per_sec = (gen_seconds > 0.0) ? ((double)gamesPerGen / gen_seconds) : 0.0;
+    cout << "Generation time: " << gen_ms << " ms (~" << (int)games_per_sec << " games/sec)\n";
         
         // Sort by fitness
         sort(population.begin(), population.end(), 
@@ -285,8 +321,8 @@ int main() {
              });
         
         // Display top performers
-        cout << "\nTop 3 performers:\n";
-        for (int i = 0; i < min(3, (int)population.size()); i++) {
+        cout << "\nTop 6 performers:\n";
+        for (int i = 0; i < min(6, (int)population.size()); i++) {
             cout << (i + 1) << ". Fitness: " << (population[i].fitness * 100) << "% "
                  << "(" << population[i].wins << "W-" << population[i].losses << "L-" 
                  << population[i].draws << "D)\n";

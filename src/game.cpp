@@ -4,6 +4,9 @@
 #include <algorithm>
 #include <cctype>
 #include <random>
+#include <chrono>
+
+#include "engine.hpp" // profiling hooks
 
 using namespace std;
 
@@ -290,6 +293,8 @@ bool ChessGame::makePlayerMove(const string& moveStr, char promotionPiece) {
 
 // Make a move for the engine (saves undo info, doesn't update game status)
 void ChessGame::makeMoveForEngine(const Move& move) {
+    using namespace std::chrono;
+    auto _mstart = high_resolution_clock::now();
     // Determine captured piece (special case for en passant)
     int capturedPiece;
     if (move.moveType == EN_PASSANT) {
@@ -432,6 +437,10 @@ void ChessGame::makeMoveForEngine(const Move& move) {
     if (isWhiteTurn) {
         fullmoveNumber++;
     }
+    // record elapsed time for profiling
+    auto _mend = std::chrono::high_resolution_clock::now();
+    long long _mus = std::chrono::duration_cast<std::chrono::microseconds>(_mend - _mstart).count();
+    Engine::addMakeMoveTime(_mus);
 }
 
 // Make an engine move in the actual game (updates game state properly)
@@ -965,6 +974,8 @@ void ChessGame::undoMove() {
     if (undoStack.empty()) {
         return;
     }
+    using namespace std::chrono;
+    auto _ustart = high_resolution_clock::now();
     
     // Pop the last undo info
     UndoInfo info = undoStack.back();
@@ -1046,6 +1057,9 @@ void ChessGame::undoMove() {
         gameHistory.back().targetColumn == move.targetColumn) {
         gameHistory.pop_back();
     }
+    auto _uend = high_resolution_clock::now();
+    long long _uus = duration_cast<microseconds>(_uend - _ustart).count();
+    Engine::addUndoMoveTime(_uus);
 }
 
 // Clear the undo stack (used after engine search completes)

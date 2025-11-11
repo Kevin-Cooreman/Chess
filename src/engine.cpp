@@ -16,6 +16,11 @@ static long long moveGenTime = 0;
 static int ttLookupCalls = 0;
 static int evalCalls = 0;
 static int moveGenCalls = 0;
+// Make/undo counters
+static long long makeMoveTime = 0;
+static long long undoMoveTime = 0;
+static int makeMoveCalls = 0;
+static int undoMoveCalls = 0;
 
 // RNG for root move randomization (opening variety)
 static std::mt19937 engineRng((uint32_t)std::chrono::steady_clock::now().time_since_epoch().count());
@@ -24,7 +29,7 @@ static std::mt19937 engineRng((uint32_t)std::chrono::steady_clock::now().time_si
 Engine::Engine() : evaluator() {
     // Initialize transposition table with a conservative default size (64 MB)
     try {
-        transpositionTable.init(64);
+        transpositionTable.init(256);
     } catch(...) {
         // ignore failures
     }
@@ -38,7 +43,7 @@ Engine::Engine() : evaluator() {
 
 Engine::Engine(const Evaluation& eval) : evaluator(eval) {
     try {
-        transpositionTable.init(64);
+        transpositionTable.init(256);
     } catch(...) {
     }
     for (auto &krow : killers) {
@@ -267,7 +272,11 @@ void Engine::fastOrderMoves(vector<Move>& moves) {
 
 // Generate only capture moves for quiescence search
 vector<Move> Engine::generateCaptureMoves(ChessGame& game) {
+    auto mgStart = high_resolution_clock::now();
     vector<Move> allMoves = game.getLegalMoves();
+    auto mgEnd = high_resolution_clock::now();
+    moveGenTime += duration_cast<microseconds>(mgEnd - mgStart).count();
+    moveGenCalls++;
     vector<Move> captures;
     captures.reserve(allMoves.size());
     for (const Move& move : allMoves) {
@@ -294,6 +303,9 @@ double Engine::quiescence(ChessGame& game, double alpha, double beta, bool isMax
     
     // Limit quiescence depth to prevent explosion (more aggressive limit)
     const int MAX_QUIESCENCE_DEPTH = 6;
+    // don't store quiescence-only results here (store-filter: depth >= 1 required)
+    uint64_t posKey = game.getZobristHash();
+
     if (qDepth >= MAX_QUIESCENCE_DEPTH) {
         auto evalStart = high_resolution_clock::now();
         double result = evaluator.evaluate(game);
@@ -333,6 +345,7 @@ double Engine::quiescence(ChessGame& game, double alpha, double beta, bool isMax
     
     // If no captures, position is quiet - return stand pat
     if (captureMoves.empty()) {
+        // do not store stand-pat (depth 0) to avoid noisy shallow entries
         return standPat;
     }
     
@@ -501,8 +514,10 @@ double Engine::alphabeta(ChessGame& game, int depth, double alpha, double beta, 
             // The penalty/reward is proportional to material advantage
             eval = -materialScore * 500.0;  // Scale the penalty
         }
-        // DON'T store terminal nodes in TT - they're position-specific
-        // and should not be reused for other positions
+        // Store terminal nodes in TT as exact evaluations (depth 0) only if we're at non-quiescence depth
+        if (depth >= 1) {
+            transpositionTable.store(posKey, eval, 0, TTBound::EXACT, 0);
+        }
         return eval;
     }
     
@@ -686,6 +701,21 @@ void Engine::setRngSeed(uint64_t seed) {
     engineRng.seed((uint32_t)seed);
 }
 
+// Profiling accessors (defined here so they can read file-local counters)
+long long Engine::getTTLookupTime() { return ttLookupTime; }
+long long Engine::getEvalTime() { return evalTime; }
+long long Engine::getMoveGenTime() { return moveGenTime; }
+int Engine::getTTLookupCalls() { return ttLookupCalls; }
+int Engine::getEvalCalls() { return evalCalls; }
+int Engine::getMoveGenCalls() { return moveGenCalls; }
+// Make/undo helpers
+void Engine::addMakeMoveTime(long long us) { makeMoveTime += us; makeMoveCalls++; }
+void Engine::addUndoMoveTime(long long us) { undoMoveTime += us; undoMoveCalls++; }
+long long Engine::getMakeMoveTime() { return makeMoveTime; }
+long long Engine::getUndoMoveTime() { return undoMoveTime; }
+int Engine::getMakeMoveCalls() { return makeMoveCalls; }
+int Engine::getUndoMoveCalls() { return undoMoveCalls; }
+
 // Root-specific ordering: we can afford to make/unmake moves here to detect
 // checks and checkmates and promote them above MVV-LVA captures so the
 // search doesn't overlook forced mates.
@@ -832,4 +862,9 @@ bool Engine::rootMateProver(ChessGame& game, int maxDepth, Move& outMove) {
         }
     }
     return false;
+}
+
+// Diagnostics: forward TT summary
+void Engine::printTTSummary() const {
+    transpositionTable.printSummary();
 }
