@@ -5,6 +5,7 @@
 #include "moveGeneration.hpp"
 #include <iostream>
 #include <vector>
+#include <atomic>
 #include <string>
 #include <limits>
 #include <cstdint>
@@ -54,23 +55,24 @@ static inline Move unpackMove(uint32_t p) {
 // Implemented inline here to avoid adding new compilation units.
 class TranspositionTable {
 public:
-    TranspositionTable() : buckets_(0), curAge_(1) {}
+    TranspositionTable() : buckets_(0), ways_(2), curAge_(1) {}
 
     ~TranspositionTable() = default;
 
     // Initialize table with approx size in megabytes (default 64 MB)
-    void init(size_t sizeMB = 64) {
+    void init(size_t sizeMB = 256) {
         // estimate entries assuming ~32 bytes per entry
         size_t approxEntries = (sizeMB * 1024ULL * 1024ULL) / sizeof(EntryPacked);
-        size_t ways = 2;
-        size_t targetBuckets = approxEntries / ways;
+        // increase associativity to reduce destructive collisions
+        ways_ = 4;
+        size_t targetBuckets = approxEntries / ways_;
         if (targetBuckets == 0) targetBuckets = 1;
         // round up to next power of two
         size_t b = 1;
         while (b < targetBuckets) b <<= 1;
         buckets_ = b;
         try {
-            table_.assign(buckets_ * ways, EntryPacked());
+            table_.assign(buckets_ * ways_, EntryPacked());
         } catch(...) {
             // ignore allocation failures
             table_.clear();
@@ -79,79 +81,137 @@ public:
         curAge_ = 1;
     }
 
+    // Instrumentation counters
+    mutable std::atomic<uint64_t> probeCount{0};
+    mutable std::atomic<uint64_t> probeHitCount{0};
+    mutable std::atomic<uint64_t> storeCount{0};
+    mutable std::atomic<uint64_t> replaceCount{0};
+    mutable std::atomic<uint64_t> overwrittenExactCount{0};
+    std::array<uint64_t, 16> storeDepthHist{{0}}; // depth histogram (0..14, 15+)
+
     // Probe for key; if found, fill outEntry and return true
     bool probe(uint64_t key, TTEntry &outEntry) const {
         if (buckets_ == 0 || table_.empty()) return false;
+        probeCount.fetch_add(1, std::memory_order_relaxed);
         size_t idx = static_cast<size_t>(key) & (buckets_ - 1);
-        size_t base = idx * 2;
-        const EntryPacked &e0 = table_[base];
-        if (e0.key == key && e0.depth > 0) {
-            outEntry.score = e0.score;
-            outEntry.depth = e0.depth;
-            outEntry.bound = static_cast<TTBound>(e0.bound);
-            outEntry.mateDistance = e0.mateDistance;
-            outEntry.packedMove = e0.packedMove;
-            return true;
-        }
-        const EntryPacked &e1 = table_[base + 1];
-        if (e1.key == key && e1.depth > 0) {
-            outEntry.score = e1.score;
-            outEntry.depth = e1.depth;
-            outEntry.bound = static_cast<TTBound>(e1.bound);
-            outEntry.mateDistance = e1.mateDistance;
-            outEntry.packedMove = e1.packedMove;
-            return true;
+        size_t base = idx * ways_;
+        for (size_t w = 0; w < ways_; ++w) {
+            const EntryPacked &e = table_[base + w];
+            if (e.key == key && e.depth > 0) {
+                probeHitCount.fetch_add(1, std::memory_order_relaxed);
+                outEntry.score = e.score;
+                outEntry.depth = e.depth;
+                outEntry.bound = static_cast<TTBound>(e.bound);
+                outEntry.mateDistance = e.mateDistance;
+                outEntry.packedMove = e.packedMove;
+                return true;
+            }
         }
         return false;
     }
 
     // Store an entry (replacement policy: prefer deeper entries, then older)
     void store(uint64_t key, double score, int depth, TTBound bound, int mateDistance, uint32_t packedMove = 0) {
-        if (buckets_ == 0) init(64); // lazy init
+    if (buckets_ == 0) init(256); // lazy init
         if (buckets_ == 0) return;
+    storeCount.fetch_add(1, std::memory_order_relaxed);
         size_t idx = static_cast<size_t>(key) & (buckets_ - 1);
-        size_t base = idx * 2;
-        EntryPacked &e0 = table_[base];
-        EntryPacked &e1 = table_[base + 1];
+        size_t base = idx * ways_;
 
         // If matching key exists, update if the new depth is deeper or overwrite
-        if (e0.key == key) {
-            if (depth >= e0.depth) {
-                e0.score = score; e0.depth = depth; e0.bound = static_cast<uint8_t>(bound); e0.mateDistance = mateDistance; e0.age = curAge_; e0.packedMove = packedMove;
+        for (size_t w = 0; w < ways_; ++w) {
+            EntryPacked &e = table_[base + w];
+            if (e.key == key) {
+                if (depth >= e.depth) {
+                    e.score = score; e.depth = depth; e.bound = static_cast<uint8_t>(bound); e.mateDistance = mateDistance; e.age = curAge_; e.packedMove = packedMove;
+                }
+                curAge_++;
+                return;
             }
-            curAge_++;
-            return;
-        }
-        if (e1.key == key) {
-            if (depth >= e1.depth) {
-                e1.score = score; e1.depth = depth; e1.bound = static_cast<uint8_t>(bound); e1.mateDistance = mateDistance; e1.age = curAge_; e1.packedMove = packedMove;
-            }
-            curAge_++;
-            return;
         }
 
         // Prefer empty slot
-        if (e0.key == 0) {
-            e0.key = key; e0.score = score; e0.depth = depth; e0.bound = static_cast<uint8_t>(bound); e0.mateDistance = mateDistance; e0.age = curAge_++; e0.packedMove = packedMove;
-            return;
-        }
-        if (e1.key == 0) {
-            e1.key = key; e1.score = score; e1.depth = depth; e1.bound = static_cast<uint8_t>(bound); e1.mateDistance = mateDistance; e1.age = curAge_++; e1.packedMove = packedMove;
-            return;
+        for (size_t w = 0; w < ways_; ++w) {
+            EntryPacked &e = table_[base + w];
+            if (e.key == 0) {
+                e.key = key; e.score = score; e.depth = depth; e.bound = static_cast<uint8_t>(bound); e.mateDistance = mateDistance; e.age = curAge_++; e.packedMove = packedMove;
+                return;
+            }
         }
 
-        // Replace the shallower entry; if equal depth, replace the older one
-        if (e0.depth < e1.depth) {
-            e0.key = key; e0.score = score; e0.depth = depth; e0.bound = static_cast<uint8_t>(bound); e0.mateDistance = mateDistance; e0.age = curAge_++; e0.packedMove = packedMove;
-        } else if (e1.depth < e0.depth) {
-            e1.key = key; e1.score = score; e1.depth = depth; e1.bound = static_cast<uint8_t>(bound); e1.mateDistance = mateDistance; e1.age = curAge_++; e1.packedMove = packedMove;
-        } else {
-            // equal depth -> replace older
-            if (e0.age <= e1.age) {
-                e0.key = key; e0.score = score; e0.depth = depth; e0.bound = static_cast<uint8_t>(bound); e0.mateDistance = mateDistance; e0.age = curAge_++; e0.packedMove = packedMove;
-            } else {
-                e1.key = key; e1.score = score; e1.depth = depth; e1.bound = static_cast<uint8_t>(bound); e1.mateDistance = mateDistance; e1.age = curAge_++; e1.packedMove = packedMove;
+        // Replacement policy: avoid overwriting exact+deep entries when possible
+        // Find the slot with the worst priority to replace: prefer shallower depth, older age, and non-EXACT bound
+    size_t replaceIdx = 0;
+        int32_t worstDepth = table_[base].depth;
+        uint8_t worstAge = table_[base].age;
+        uint8_t worstBound = table_[base].bound;
+        for (size_t w = 1; w < ways_; ++w) {
+            EntryPacked &e = table_[base + w];
+            bool isWorse = false;
+            if (e.depth < worstDepth) isWorse = true;
+            else if (e.depth == worstDepth) {
+                // prefer to replace non-EXACT entries
+                if (e.bound != 0 && worstBound == 0) isWorse = true;
+                else if (e.age <= worstAge) isWorse = true;
             }
+            if (isWorse) {
+                replaceIdx = w;
+                worstDepth = e.depth;
+                worstAge = e.age;
+                worstBound = e.bound;
+            }
+        }
+
+        // If the chosen victim is an EXACT entry and deeper than new depth, try to find any non-EXACT
+        EntryPacked &victim = table_[base + replaceIdx];
+        // record that we're about to replace someone
+        replaceCount.fetch_add(1, std::memory_order_relaxed);
+        if (victim.bound == static_cast<uint8_t>(TTBound::EXACT) && victim.depth > depth) {
+            bool foundAlt = false;
+            for (size_t w = 0; w < ways_; ++w) {
+                EntryPacked &e = table_[base + w];
+                if (e.bound != static_cast<uint8_t>(TTBound::EXACT)) {
+                    replaceIdx = w; foundAlt = true; break;
+                }
+            }
+            if (!foundAlt) {
+                // keep the deeper exact entry; fall back to replacing the oldest
+                size_t oldest = 0;
+                uint8_t oldestAge = table_[base].age;
+                for (size_t w = 1; w < ways_; ++w) {
+                    if (table_[base + w].age > oldestAge) { oldest = w; oldestAge = table_[base + w].age; }
+                }
+                replaceIdx = oldest;
+            }
+        }
+
+        // Perform replace at replaceIdx
+        EntryPacked &target = table_[base + replaceIdx];
+        // if victim was exact and deeper than new depth, count it
+        if (target.bound == static_cast<uint8_t>(TTBound::EXACT) && target.depth > depth) {
+            overwrittenExactCount.fetch_add(1, std::memory_order_relaxed);
+        }
+        target.key = key; target.score = score; target.depth = depth; target.bound = static_cast<uint8_t>(bound); target.mateDistance = mateDistance; target.age = curAge_++; target.packedMove = packedMove;
+        // histogram of stored depths
+        size_t dh = (depth >= 15) ? 15 : (size_t)depth;
+        storeDepthHist[dh]++;
+    }
+
+    void printSummary() const {
+        using std::cout; using std::endl;
+        uint64_t probes = probeCount.load(std::memory_order_relaxed);
+        uint64_t hits = probeHitCount.load(std::memory_order_relaxed);
+        uint64_t stores = storeCount.load(std::memory_order_relaxed);
+        uint64_t replaces = replaceCount.load(std::memory_order_relaxed);
+        uint64_t overwrittenExact = overwrittenExactCount.load(std::memory_order_relaxed);
+        cout << "\nTranspositionTable summary:\n";
+        cout << "  probes: " << probes << ", hits: " << hits << ", hit%: ";
+        if (probes) cout << (100.0 * hits / probes) << "%\n"; else cout << "0%\n";
+        cout << "  stores: " << stores << ", replacements: " << replaces << ", overwrittenExact: " << overwrittenExact << "\n";
+        cout << "  store depth histogram:\n";
+        for (size_t i = 0; i < storeDepthHist.size(); ++i) {
+            if (storeDepthHist[i] == 0) continue;
+            cout << "    depth " << i << ": " << storeDepthHist[i] << "\n";
         }
     }
 
@@ -165,7 +225,7 @@ public:
     }
 
     // Approximate number of slots
-    size_t capacity() const { return buckets_ * 2; }
+    size_t capacity() const { return buckets_ * ways_; }
 
 private:
     struct EntryPacked {
@@ -180,6 +240,7 @@ private:
 
     std::vector<EntryPacked> table_; // contiguous storage: buckets * ways
     size_t buckets_ = 0; // power-of-two
+    size_t ways_ = 2;
     uint8_t curAge_ = 1;
 };
 
@@ -213,6 +274,9 @@ public:
     Engine();
     Engine(const Evaluation& eval);
     ~Engine() = default;
+
+    // Expose TT summary for diagnostics
+    void printTTSummary() const;
 
     // Main public interface
     Move getBestMove(ChessGame& game, int depth);
